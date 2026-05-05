@@ -5,9 +5,13 @@ set -Eeuo pipefail
 DRY_RUN=false
 UPDATE_SYSTEM=true
 CHANGE_SHELL=true
+INSTALL_ALIASES=true
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ZSHRC_FILE="${HOME}/.zshrc"
 STARSHIP_CONFIG="${HOME}/.config/starship.toml"
 ZINIT_HOME="${ZINIT_HOME:-${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git}"
+ALIASES_SOURCE="${SCRIPT_DIR}/Configuration alias/aliases.zsh"
+ALIASES_TARGET="${HOME}/.config/zsh/personal_aliases.zsh"
 
 PACMAN_PACKAGES=(
   zsh
@@ -20,6 +24,11 @@ PACMAN_PACKAGES=(
   ripgrep
   bat
   git
+  pacman-contrib
+  reflector
+  btop
+  fastfetch
+  expac
 )
 
 ZINIT_PLUGINS=(
@@ -61,8 +70,12 @@ Options:
   --dry-run           Affiche les commandes sans les executer
   --no-update         Ne lance pas pacman -Syu avant l'installation
   --no-chsh           Ne change pas le shell par defaut vers zsh
+  --no-aliases        N'installe pas le fichier d'alias personnel
   --zshrc FILE        Fichier .zshrc a modifier (defaut: ${ZSHRC_FILE})
   --starship FILE     Fichier starship.toml a ecrire (defaut: ${STARSHIP_CONFIG})
+  --aliases FILE      Fichier d'alias a installer (defaut: ${ALIASES_SOURCE})
+  --aliases-target FILE
+                      Destination du fichier d'alias (defaut: ${ALIASES_TARGET})
   -h, --help          Affiche cette aide
 EOF
 }
@@ -79,6 +92,9 @@ parse_args() {
       --no-chsh)
         CHANGE_SHELL=false
         ;;
+      --no-aliases)
+        INSTALL_ALIASES=false
+        ;;
       --zshrc)
         shift
         [[ $# -gt 0 ]] || fatal "Option --zshrc: fichier manquant"
@@ -88,6 +104,16 @@ parse_args() {
         shift
         [[ $# -gt 0 ]] || fatal "Option --starship: fichier manquant"
         STARSHIP_CONFIG="$1"
+        ;;
+      --aliases)
+        shift
+        [[ $# -gt 0 ]] || fatal "Option --aliases: fichier manquant"
+        ALIASES_SOURCE="$1"
+        ;;
+      --aliases-target)
+        shift
+        [[ $# -gt 0 ]] || fatal "Option --aliases-target: fichier manquant"
+        ALIASES_TARGET="$1"
         ;;
       -h|--help)
         usage
@@ -105,8 +131,21 @@ parse_args() {
 }
 
 check_prereqs() {
-  command -v pacman >/dev/null || fatal "pacman est introuvable"
-  command -v sudo >/dev/null || fatal "sudo est introuvable"
+  if ! command -v pacman >/dev/null; then
+    if [[ "$DRY_RUN" == true ]]; then
+      log_warn "pacman est introuvable; verification ignoree en dry-run"
+    else
+      fatal "pacman est introuvable"
+    fi
+  fi
+
+  if ! command -v sudo >/dev/null; then
+    if [[ "$DRY_RUN" == true ]]; then
+      log_warn "sudo est introuvable; verification ignoree en dry-run"
+    else
+      fatal "sudo est introuvable"
+    fi
+  fi
 
   if [[ "$DRY_RUN" == false ]]; then
     sudo -v || fatal "Impossible d'obtenir les droits sudo"
@@ -270,10 +309,28 @@ configure_zshrc() {
   fi
 }
 
+install_aliases() {
+  local alias_installer
+
+  [[ "$INSTALL_ALIASES" == true ]] || return 0
+
+  alias_installer="${SCRIPT_DIR}/Configuration alias/install-zsh-aliases.sh"
+  [[ -f "$alias_installer" ]] || fatal "Script d'installation des alias introuvable: $alias_installer"
+  [[ -f "$ALIASES_SOURCE" ]] || fatal "Fichier d'alias introuvable: $ALIASES_SOURCE"
+
+  log_info "Installation des alias personnels"
+
+  if [[ "$DRY_RUN" == true ]]; then
+    run bash "$alias_installer" --dry-run --config "$ALIASES_SOURCE" --target "$ALIASES_TARGET" --zshrc "$ZSHRC_FILE"
+  else
+    bash "$alias_installer" --config "$ALIASES_SOURCE" --target "$ALIASES_TARGET" --zshrc "$ZSHRC_FILE"
+  fi
+}
+
 change_default_shell() {
   local zsh_path
 
-  [[ "$CHANGE_SHELL" == true ]] || return
+  [[ "$CHANGE_SHELL" == true ]] || return 0
 
   zsh_path="$(command -v zsh || true)"
   [[ -n "$zsh_path" ]] || fatal "zsh est introuvable apres installation"
@@ -299,6 +356,7 @@ main() {
   install_zinit
   configure_starship
   configure_zshrc
+  install_aliases
   change_default_shell
 
   log_info "Installation terminee. Ouvrez une nouvelle session zsh pour charger la configuration."
