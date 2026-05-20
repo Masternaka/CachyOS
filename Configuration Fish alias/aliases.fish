@@ -35,7 +35,7 @@ alias list-foreign='pacman -Qm' # Liste les paquets étrangers (AUR, etc.)
 
 # Alias pour maintenance système
 alias clean-cache='sudo paccache -r' # Nettoie le cache des paquets
-alias remove-orphans='sudo pacman -Qdtq | sudo pacman -Rns -' # Supprime les paquets orphelins
+alias remove-orphans='pacman -Qdtq | xargs -r sudo pacman -Rns' # Supprime les paquets orphelins (proprement avec xargs)
 alias check-updates='checkupdates' # Vérifie les mises à jour disponibles
 alias check-aur-updates='checkupdates-aur' # Vérifie les mises à jour AUR
 alias systemctl='sudo systemctl' # Gestionnaire de services systemd avec sudo
@@ -49,8 +49,8 @@ alias myip='curl -s ifconfig.me' # Affiche l'adresse IP publique
 
 # Alias pour processus
 alias ps='ps aux' # Liste tous les processus en cours
-alias top='htop' # Moniteur de processus interactif (nécessite htop)
-alias kill='sudo kill' # Tue un processus par PID
+alias top='btop' # Moniteur de processus interactif (CachyOS utilise btop par défaut)
+# Note : L'alias 'kill' a été retiré pour préserver la commande interne de Fish (autocomplétion des processus)
 alias killall='sudo killall' # Tue tous les processus d'un nom
 
 # Alias pour édition

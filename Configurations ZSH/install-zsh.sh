@@ -9,9 +9,10 @@ INSTALL_ALIASES=true
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ZSHRC_FILE="${HOME}/.zshrc"
 STARSHIP_CONFIG="${HOME}/.config/starship.toml"
-ZINIT_HOME="${ZINIT_HOME:-${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git}"
+OMZ_HOME="${HOME}/.oh-my-zsh"
 ALIASES_SOURCE="${SCRIPT_DIR}/Configuration alias/aliases.zsh"
 ALIASES_TARGET="${HOME}/.config/zsh/personal_aliases.zsh"
+
 
 PACMAN_PACKAGES=(
   zsh
@@ -31,14 +32,18 @@ PACMAN_PACKAGES=(
   expac
 )
 
-ZINIT_PLUGINS=(
+OMZ_PLUGINS=(
+  git
+  sudo
+  colored-man-pages
+)
+
+OMZ_CUSTOM_PLUGINS=(
   zsh-users/zsh-completions
   zsh-users/zsh-autosuggestions
-  fdellwing/zsh-bat
-  unixorn/fzf-zsh-plugin
-  z-shell/zsh-zoxide
   zsh-users/zsh-syntax-highlighting
 )
+
 
 log_info() { printf '\033[34m[INFO]\033[0m %s\n' "$*"; }
 log_warn() { printf '\033[33m[WARN]\033[0m %s\n' "$*"; }
@@ -64,7 +69,7 @@ usage() {
 Usage: $(basename "$0") [options]
 
 Installe et configure zsh avec JetBrainsMono Nerd Font, Starship
-Catppuccin Powerline, zinit et une selection de plugins.
+Catppuccin Powerline, Oh My Zsh et une selection de plugins.
 
 Options:
   --dry-run           Affiche les commandes sans les executer
@@ -162,15 +167,22 @@ install_packages() {
   run sudo pacman -S --needed --noconfirm "${PACMAN_PACKAGES[@]}"
 }
 
-install_zinit() {
-  if [[ -d "$ZINIT_HOME/.git" ]]; then
-    log_info "zinit est deja installe: $ZINIT_HOME"
-    return
+install_oh_my_zsh() {
+  if [[ -d "$OMZ_HOME" ]]; then
+    log_info "Oh My Zsh est deja installe : $OMZ_HOME"
+  else
+    log_info "Installation de Oh My Zsh"
+    run git clone --depth=1 https://github.com/ohmyzsh/ohmyzsh.git "$OMZ_HOME"
   fi
 
-  log_info "Installation de zinit"
-  run mkdir -p "$(dirname -- "$ZINIT_HOME")"
-  run git clone https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME"
+  local plugin_url plugin_name
+  for plugin_url in "${OMZ_CUSTOM_PLUGINS[@]}"; do
+    plugin_name="${plugin_url##*/}"
+    if [[ ! -d "$OMZ_HOME/custom/plugins/$plugin_name" ]]; then
+      log_info "Installation du plugin custom Oh My Zsh : $plugin_name"
+      run git clone --depth=1 "https://github.com/${plugin_url}.git" "$OMZ_HOME/custom/plugins/$plugin_name"
+    fi
+  done
 }
 
 configure_starship() {
@@ -190,26 +202,36 @@ configure_starship() {
 }
 
 build_zsh_block() {
-  local plugin
+  local p plugins_list=""
+  for p in "${OMZ_PLUGINS[@]}"; do
+    plugins_list+=" $p"
+  done
+  for p in "${OMZ_CUSTOM_PLUGINS[@]}"; do
+    plugins_list+=" ${p##*/}"
+  done
 
   cat <<EOF
 # >>> CachyOS zsh configuration >>>
-export ZINIT_HOME="${ZINIT_HOME}"
+export ZSH="${OMZ_HOME}"
+
+# Le theme est laisse vide car nous utilisons Starship
+ZSH_THEME=""
+
+plugins=(${plugins_list})
+
+fpath+=( \${ZSH}/custom/plugins/zsh-completions/src )
+
+if [[ -f "\${ZSH}/oh-my-zsh.sh" ]]; then
+  source "\${ZSH}/oh-my-zsh.sh"
+else
+  print -P "%F{yellow}[WARN]%f Oh My Zsh est introuvable : \${ZSH}"
+fi
 
 HISTFILE="\${ZDOTDIR:-\${HOME}}/.zsh_history"
 HISTSIZE=100000
 SAVEHIST=100000
 
-setopt append_history
-setopt extended_history
-setopt hist_expire_dups_first
-setopt hist_find_no_dups
-setopt hist_ignore_all_dups
-setopt hist_ignore_space
-setopt hist_reduce_blanks
-setopt inc_append_history
-setopt share_history
-
+# Options additionnelles de Zsh
 setopt auto_cd
 setopt auto_pushd
 setopt pushd_ignore_dups
@@ -229,37 +251,8 @@ export FZF_CTRL_T_COMMAND="\${FZF_DEFAULT_COMMAND}"
 export FZF_ALT_C_COMMAND='fd --type d --hidden --follow --exclude .git'
 export FZF_DEFAULT_OPTS='--height 40% --layout=reverse --border --info=inline'
 
-if [[ -f "\${ZINIT_HOME}/zinit.zsh" ]]; then
-  source "\${ZINIT_HOME}/zinit.zsh"
-  autoload -Uz _zinit
-  (( \${+_comps} )) && _comps[zinit]=_zinit
-
-EOF
-
-  for plugin in "${ZINIT_PLUGINS[@]}"; do
-    printf '  zinit light %s\n' "$plugin"
-  done
-
-  cat <<'EOF'
-else
-  print -P "%F{yellow}[WARN]%f zinit est introuvable: ${ZINIT_HOME}/zinit.zsh"
-fi
-
-autoload -Uz compinit
-zstyle ':completion:*' menu select
-zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}'
-zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
-zstyle ':completion:*' special-dirs true
-zstyle ':completion:*' squeeze-slashes true
-zstyle ':completion:*:descriptions' format '[%d]'
-zstyle ':completion:*:warnings' format 'Aucune completion pour %d'
-zmodload zsh/complist
-
-mkdir -p "${XDG_CACHE_HOME:-${HOME}/.cache}/zsh"
-compinit -d "${XDG_CACHE_HOME:-${HOME}/.cache}/zsh/zcompdump-${ZSH_VERSION}"
-
 if command -v zoxide >/dev/null && ! command -v z >/dev/null; then
-  eval "$(zoxide init zsh)"
+  eval "\$(zoxide init zsh)"
 fi
 
 if command -v fzf >/dev/null; then
@@ -267,7 +260,7 @@ if command -v fzf >/dev/null; then
   [[ -f /usr/share/fzf/completion.zsh ]] && source /usr/share/fzf/completion.zsh
 fi
 
-eval "$(starship init zsh)"
+eval "\$(starship init zsh)"
 # <<< CachyOS zsh configuration <<<
 EOF
 }
@@ -353,7 +346,7 @@ main() {
   parse_args "$@"
   check_prereqs
   install_packages
-  install_zinit
+  install_oh_my_zsh
   configure_starship
   configure_zshrc
   install_aliases

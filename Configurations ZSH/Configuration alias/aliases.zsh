@@ -147,6 +147,7 @@ alias edithosts='sudoedit /etc/hosts'
 alias ..='cd ..'
 alias ...='cd ../..'
 alias ....='cd ../../..'
+alias .....='cd ../../../..'
 alias -- -='cd -'
 alias ls='eza --icons=auto --group-directories-first'
 alias ll='eza -lah --icons=auto --git --group-directories-first'
@@ -161,6 +162,7 @@ alias catp='bat'
 alias fdf='fd --hidden --follow --exclude .git'
 alias chx='chmod +x'
 alias fix-own='sudo chown -R "$USER:$USER"'
+alias copypath='pwd | wl-copy'
 
 cdfzf() {
   local dir
@@ -175,25 +177,12 @@ fzf-open() {
 }
 
 # =============================================================================
-# Git
+# Git (Surcharges personnalisées sur Oh My Zsh)
 # =============================================================================
 
-alias g='git'
-alias gs='git status --short'
-alias gstat='git status'
-alias gp='git push'
-alias gpl='git pull'
-alias gadd='git add'
-alias gaddall='git add --all'
-alias gcom='git commit -m'
-alias gdif='git diff'
-alias gds='git diff --staged'
-alias gf='git fetch'
-alias gfa='git fetch --all --prune'
+# Oh My Zsh définit 'gl' pour 'git pull'. Nous le surchargeons pour notre historique en graphe très pratique.
 alias gl='git log --oneline --graph --decorate'
 alias gla='git log --oneline --graph --decorate --all'
-alias gb='git branch'
-alias gsw='git switch'
 
 # =============================================================================
 # Raccourcis divers
@@ -204,4 +193,4 @@ alias rip="expac --timefmt='%Y-%m-%d %T' '%l\t%n %v' | sort | tail -200 | nl"
 alias shutnow='sudo shutdown now'
 alias reboot='sudo reboot'
 alias poweroff='sudo poweroff'
-alias update-font='fc-cache -fv'
+alias font-sync='sudo fc-cache -fvr && fc-cache -fvr'
