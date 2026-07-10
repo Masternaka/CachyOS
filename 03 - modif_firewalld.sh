@@ -122,8 +122,59 @@ set_default_zone() {
   fatal "firewalld n'est pas actif et firewall-offline-cmd est introuvable"
 }
 
+uninstall_ufw() {
+  if ! command -v ufw &>/dev/null; then
+    log_info "ufw n'est pas installé, rien à désinstaller"
+    return
+  fi
+
+  log_info "Désinstallation de ufw..."
+  if firewalld_is_running; then
+    log_warn "firewalld est déjà actif, désactivation de ufw..."
+  fi
+
+  if [[ "$DRY_RUN" == true ]]; then
+    run_privileged ufw disable
+    run_privileged pacman -Rns --noconfirm ufw
+    return
+  fi
+
+  run_privileged ufw disable 2>/dev/null || true
+  run_privileged systemctl disable --now ufw.service 2>/dev/null || true
+  run_privileged pacman -Rns --noconfirm ufw && log_info "ufw désinstallé" || log_warn "Échec de la désinstallation de ufw"
+}
+
+install_firewalld() {
+  local missing_packages=()
+
+  if ! command -v firewall-cmd &>/dev/null; then
+    missing_packages+=(firewalld)
+  fi
+  if ! command -v firewall-config &>/dev/null; then
+    missing_packages+=(firewall-config)
+  fi
+
+  if [[ ${#missing_packages[@]} -eq 0 ]]; then
+    log_info "firewalld et firewall-config sont déjà installés"
+    return
+  fi
+
+  log_info "Installation de: ${missing_packages[*]}"
+  run_privileged pacman -S --noconfirm --needed "${missing_packages[@]}"
+
+  if [[ "$DRY_RUN" == true ]]; then
+    run_privileged systemctl enable --now firewalld.service
+    return
+  fi
+
+  run_privileged systemctl enable --now firewalld.service
+  log_info "firewalld activé et démarré"
+}
+
 main() {
   parse_args "$@"
+  uninstall_ufw
+  install_firewalld
   set_default_zone
 }
 

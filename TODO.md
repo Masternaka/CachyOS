@@ -1,0 +1,2 @@
+- [ ] Adapter les paquets installer, voir ce qui est sur les dépôts de Cachy OS
+- [ ] Modifier le script 10 - bash_tools.sh pour l'apdapter à Fish
