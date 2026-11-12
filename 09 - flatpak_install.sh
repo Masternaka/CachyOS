@@ -1,319 +1,280 @@
 #!/usr/bin/env bash
-
+# Applications personnelles Flathub ; lancer sans sudo dans la session utilisateur.
 set -euo pipefail
-
-# Couleurs
-GREEN="\e[32m"
-YELLOW="\e[33m"
-RED="\e[31m"
-BLUE="\e[34m"
-RESET="\e[0m"
-
-# Options
+export LC_ALL=C
 DRY_RUN=false
-SHOW_HELP=false
 SHOW_LIST=false
-
-# ─── Vérification anticipée de SUDO_USER (avant tout usage) ──────────────────
-if [ -z "${SUDO_USER:-}" ]; then
-    echo -e "${RED}SUDO_USER n'est pas défini. Veuillez exécuter avec sudo.${RESET}"
-    exit 1
-fi
-
-# Récupération du home utilisateur réel (après vérification de SUDO_USER)
-USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
-
-# Alias pour exécuter flatpak en tant qu'utilisateur réel (pas root)
-flatpak_user() {
-    sudo -u "$SUDO_USER" flatpak "$@"
-}
+CLEANUP=false
+SNAPSHOT=''
+FLATHUB_DESCRIPTOR=https://flathub.org/repo/flathub.flatpakrepo
 
 # ─── Liste des applications Flatpak à installer ───────────────────────────────
 # Format : "app.id.flatpak:Description"
 applications=(
 
     # Appstore pour Flatpak
-    "io.github.kolunmi.Bazaar"
+    "io.github.kolunmi.Bazaar:Bazaar — magasin Flatpak"
     #"org.dupot.easyflatpak"
 
     # Logiciels pour gestion des flatpaks
-    "io.github.flattool.Warehouse"
-    "com.github.tchx84.Flatseal"
-    "io.github.giantpinkrobots.flatsweep"
+    "io.github.flattool.Warehouse:Warehouse — gestion des applications"
+    "com.github.tchx84.Flatseal:Flatseal — permissions"
+    "io.github.giantpinkrobots.flatsweep:Flatsweep — nettoyage des données résiduelles"
 
     # Logiciels pour installation de logiciels windows et distrobox
-    "com.usebottles.bottles"
-    "io.github.dvlv.boxbuddyrs"
+    "com.usebottles.bottles:Bottles — applications Windows"
+    "io.github.dvlv.boxbuddyrs:BoxBuddy — interface Distrobox"
 
     # Utilitaires pour service systemd
-    "io.github.plrigaux.sysd-manager"
+    "io.github.plrigaux.sysd-manager:SysD Manager — unités systemd"
 
     # Utilitaire pour la gestion du son
-    "com.github.wwmm.easyeffects"
+    "com.github.wwmm.easyeffects:Easy Effects — effets audio"
 
     # Utilitaire pour gestion des polices
-    "io.github.getnf.embellish"
+    "io.github.getnf.embellish:Embellish — polices Nerd Fonts"
 
     # Utilitaire pour git
-    "com.github.Murmele.Gittyup"
+    "com.github.Murmele.Gittyup:Gittyup — interface Git"
 
     # Utilitaire de transfert de fichiers
-    "org.localsend.localsend_app"
+    "org.localsend.localsend_app:LocalSend — transfert de fichiers"
 
     # Utilitaire de monitoring et de gestion de système
-    "io.missioncenter.MissionCenter"
+    "io.missioncenter.MissionCenter:Mission Center — surveillance système"
 
     # Utilitaire de sauvegarde
-    "org.gnome.World.PikaBackup"
+    "org.gnome.World.PikaBackup:Pika Backup — sauvegarde personnelle"
 
     # Utilitaire de communication
-    "dev.vencord.Vesktop"
+    #"dev.vencord.Vesktop"
 )
 
-# ─── Fonctions utilitaires ────────────────────────────────────────────────────
-
-show_help() {
-    echo -e "${GREEN}=== Aide du script d'installation Flatpak ===${RESET}"
-    echo ""
-    echo "Ce script permet d'installer automatiquement des applications Flatpak."
-    echo ""
-    echo "UTILISATION:"
-    echo "  sudo ./07\ -\ flatpak_install.sh [options]"
-    echo ""
-    echo "OPTIONS:"
-    echo "  --help      Affiche cette aide"
-    echo "  --dry-run   Simule les installations sans effectuer de modifications"
-    echo "  --list      Affiche la liste des applications qui seraient installées"
-    echo ""
-    echo "APPLICATIONS INSTALLÉES:"
-    for app_info in "${applications[@]}"; do
-        local app_id="${app_info%%:*}"
-        local app_desc="${app_info##*:}"
-        echo "  - ${app_desc} (${app_id})"
-    done
-}
-
-cleanup_on_exit() {
-    local exit_code=$?
-    if [ $exit_code -ne 0 ]; then
-        echo -e "${RED}Installation interrompue (code: $exit_code).${RESET}"
-    fi
-}
-
-# Confirmation interactive — ignorée si stdin n'est pas un terminal (ex: appelé depuis super_script.sh)
-confirm_installation() {
-    if [ "$DRY_RUN" = false ]; then
-        if [ -t 0 ]; then
-            echo -e "${YELLOW}Continuer avec l'installation des applications Flatpak ? (y/N)${RESET}"
-            read -r -s -n 1 -p "> " response
-            echo
-            if [[ ! "$response" =~ ^[Yy]$ ]]; then
-                echo -e "${YELLOW}Installation annulée.${RESET}"
-                exit 0
-            fi
-        else
-            echo -e "${YELLOW}[INFO] stdin non interactif — confirmation automatique.${RESET}"
-        fi
-    fi
-}
-
-# ─── Vérifications préliminaires ──────────────────────────────────────────────
-
-check_flatpak_installed() {
-    if ! command -v flatpak &> /dev/null; then
-        echo -e "${RED}❌ Flatpak n'est pas installé. Veuillez l'installer d'abord avec:${RESET}"
-        echo -e "${YELLOW}sudo pacman -S flatpak${RESET}"
-        exit 1
-    fi
-    echo -e "${GREEN}✓ Flatpak est installé : $(flatpak --version)${RESET}"
-}
-
-# Vérifie et ajoute le remote Flathub pour l'utilisateur réel
-setup_flathub_remote() {
-    echo -e "${BLUE}Vérification du remote Flathub...${RESET}"
-    if flatpak_user remotes --columns=name 2>/dev/null | grep -q "^flathub$"; then
-        echo -e "${GREEN}✓ Remote Flathub déjà configuré pour $SUDO_USER${RESET}"
-    else
-        echo -e "${BLUE}➕ Ajout du remote Flathub pour $SUDO_USER...${RESET}"
-        if [ "$DRY_RUN" = false ]; then
-            flatpak_user remote-add --if-not-exists flathub \
-                https://flathub.org/repo/flathub.flatpakrepo
-            echo -e "${GREEN}✓ Remote Flathub ajouté${RESET}"
-        else
-            echo "DRY-RUN: flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo"
-        fi
-    fi
-}
-
-# ─── Affichage de la liste ────────────────────────────────────────────────────
-
+info() { printf '%s\n' "$*"; }
+fatal() { printf 'Erreur : %s\n' "$1" >&2; exit "${2:-1}"; }
+flatpak_user() { flatpak "$@" --user; }
 show_applications_list() {
-    echo -e "${GREEN}=== Applications Flatpak qui seront installées ===${RESET}"
-    echo ""
-    for app_info in "${applications[@]}"; do
-        local app_id="${app_info%%:*}"
-        local app_desc="${app_info##*:}"
-        echo -e "${BLUE}•${RESET} $app_desc"
-        echo -e "  ${YELLOW}ID:${RESET} $app_id"
-        echo ""
+    local entry
+    for entry in "${applications[@]}"; do
+        printf '  %-45s %s\n' "${entry%%:*}" "${entry#*:}"
     done
 }
+show_help() {
+    cat <<'EOF'
+Usage : bash "09 - flatpak_install.sh" [options]
+Lancer sans sudo, avec le compte qui utilisera les applications.
 
-# ─── Installation avec retry ──────────────────────────────────────────────────
+  --help, -h  Afficher l'aide sans Flatpak ni privilèges.
+  --list      Afficher les identifiants et descriptions sans Flatpak.
+  --dry-run   Examiner seulement l'état local : aucun ajout de dépôt,
+              téléchargement, inventaire écrit ou nettoyage.
+  --cleanup   Proposer séparément le nettoyage des runtimes personnels
+              inutilisés après une installation sans erreur.
 
-install_flatpak_with_retry() {
-    local app="$1"
-    local max_attempts=3
-    local attempt=1
-
-    while [ $attempt -le $max_attempts ]; do
-        if [ "$DRY_RUN" = false ]; then
-            # Installation en tant qu'utilisateur réel (pas root)
-            if flatpak_user install -y flathub "$app"; then
-                return 0
-            else
-                attempt=$((attempt + 1))
-                if [ $attempt -le $max_attempts ]; then
-                    echo -e "${YELLOW}Nouvelle tentative dans 5 secondes... (tentative $attempt/$max_attempts)${RESET}"
-                    sleep 5
-                fi
-            fi
-        else
-            echo "DRY-RUN: flatpak install -y flathub $app (en tant que $SUDO_USER)"
-            return 0
-        fi
-    done
-
-    return 1
+Après aperçu et confirmation : inventaire privé sous /var/tmp, ajout éventuel
+de Flathub personnel, vérification en ligne des 13 références stables, puis
+installation ou mise à jour des seules applications sélectionnées.
+Les dialogues natifs de Flatpak restent actifs. Aucun retry automatique.
+Les installations système et les autres applications ne sont pas mises à jour.
+L'inventaire ne sauvegarde pas les données personnelles ni les anciens runtimes.
+EOF
 }
-
-# ─── Installation de toutes les applications ──────────────────────────────────
-
-install_applications() {
-    local total_apps=${#applications[@]}
-    local current_app=0
-    local failed_apps=()
-    local success_count=0
-
-    echo -e "${GREEN}=== Installation des applications Flatpak ===${RESET}"
-    echo ""
-
-    for app_info in "${applications[@]}"; do
-        current_app=$((current_app + 1))
-        local app_id="${app_info%%:*}"
-        local app_desc="${app_info##*:}"
-
-        echo -e "${BLUE}[$current_app/$total_apps] $app_desc${RESET} ($app_id)"
-
-        # Vérifier si l'application est déjà installée (via l'utilisateur réel)
-        # --columns=application donne uniquement l'App ID, sans ambiguïté
-        if flatpak_user list --app --columns=application 2>/dev/null | grep -qx "$app_id"; then
-            echo -e "${YELLOW}  ↳ Déjà installé, ignoré.${RESET}"
-            success_count=$((success_count + 1))
-        else
-            if install_flatpak_with_retry "$app_id"; then
-                echo -e "${GREEN}  ✓ Installé avec succès${RESET}"
-                success_count=$((success_count + 1))
-            else
-                failed_apps+=("$app_id")
-                echo -e "${RED}  ✗ Échec de l'installation${RESET}"
-            fi
-        fi
-        echo ""
-    done
-
-    # ─── Rapport final ────────────────────────────────────────────────────────
-    echo -e "${GREEN}=== Résumé ===${RESET}"
-    echo -e "Applications réussies : $success_count / $total_apps"
-
-    if [ ${#failed_apps[@]} -gt 0 ]; then
-        echo -e "${RED}Applications non installées :${RESET}"
-        for app in "${failed_apps[@]}"; do
-            echo -e "  ${RED}✗ $app${RESET}"
-        done
-    fi
-
-    if [ "$DRY_RUN" = false ]; then
-        echo -e "${GREEN}✅ Installation terminée.${RESET}"
-    else
-        echo -e "${YELLOW}🔍 Mode simulation terminé.${RESET}"
-    fi
-}
-
-# ─── Nettoyage final ──────────────────────────────────────────────────────────
-
-cleanup() {
-    if [ "$DRY_RUN" = false ]; then
-        echo -e "${BLUE}🧹 Suppression des runtimes Flatpak inutilisés...${RESET}"
-        # Nettoyage côté utilisateur réel
-        if flatpak_user uninstall --unused -y 2>/dev/null; then
-            echo -e "${GREEN}✓ Nettoyage terminé${RESET}"
-        else
-            echo -e "${YELLOW}⚠ Aucun paquet inutilisé à supprimer${RESET}"
-        fi
-    else
-        echo "DRY-RUN: Nettoyage des runtimes inutilisés"
-    fi
-}
-
-# ─── Gestion des arguments ────────────────────────────────────────────────────
-
 for arg in "$@"; do
-    case $arg in
-        --help)
-            show_help
-            exit 0
-            ;;
-        --dry-run)
-            DRY_RUN=true
-            ;;
-        --list)
-            SHOW_LIST=true
-            ;;
-        *)
-            echo -e "${RED}Option inconnue: $arg${RESET}"
-            echo "Utilisez --help pour voir les options disponibles."
-            exit 1
-            ;;
+    case "$arg" in
+        --help|-h) show_help; exit 0 ;;
+        --list) SHOW_LIST=true ;;
+        --dry-run) DRY_RUN=true ;;
+        --cleanup) CLEANUP=true ;;
+        *) fatal "Option inconnue : $arg. Utiliser --help." 2 ;;
     esac
 done
+if $SHOW_LIST; then show_applications_list; exit 0; fi
 
-# ─── Vérification du mode superutilisateur ────────────────────────────────────
-if [ "$EUID" -ne 0 ]; then
-    echo -e "${RED}Veuillez exécuter ce script avec sudo.${RESET}"
-    exit 1
-fi
-
-# ─── Gestion des signaux d'interruption ──────────────────────────────────────
-trap 'cleanup_on_exit; exit 130' INT TERM
-trap 'cleanup_on_exit' EXIT
-
-# ─── Fonction principale ──────────────────────────────────────────────────────
-main() {
-    echo -e "${GREEN}=== Script d'installation des applications Flatpak ===${RESET}"
-    echo -e "Utilisateur : $SUDO_USER (home: $USER_HOME)"
-    echo -e "Date        : $(date)"
-    echo -e "Mode dry-run: $DRY_RUN"
-    echo ""
-
-    # Afficher la liste si demandé
-    if [ "$SHOW_LIST" = true ]; then
-        show_applications_list
-        exit 0
+on_exit() {
+    local status=$1
+    if (( status != 0 )); then
+        printf 'Opération interrompue ou en échec (code %s).\n' "$status" >&2
+        if [[ -n "$SNAPSHOT" ]]; then
+            printf 'Inventaire conservé : %s. Des changements ont pu être effectués ; aucun retour arrière automatique.\n' "$SNAPSHOT" >&2
+        fi
     fi
+}
+trap 'on_exit $?' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+[[ $(uname -s) == Linux ]] || fatal 'Ce script nécessite Linux.'
+[[ $EUID -ne 0 ]] || fatal 'Lancer sans sudo, depuis la session de l’utilisateur concerné.'
+for tool in flatpak awk; do
+    command -v "$tool" >/dev/null 2>&1 || fatal "Commande requise absente : $tool. Aucun outil installé automatiquement."
+done
+# BoxBuddy utilise ces outils sur l'hôte. Ne pas réinstaller ceux déjà préparés.
+for tool in distrobox podman; do
+    command -v "$tool" >/dev/null 2>&1 || fatal "BoxBuddy nécessite $tool sur l’hôte. Vérifier l’installation prévue par le script de paquets."
+done
+ARCH=$(flatpak --default-arch) || fatal 'Architecture Flatpak indisponible.'
+[[ "$ARCH" =~ ^[a-zA-Z0-9_]+$ ]] || fatal 'Architecture Flatpak invalide.'
 
-    # Vérifications préliminaires
-    check_flatpak_installed
-    setup_flathub_remote
-
-    # Confirmation
-    confirm_installation
-
-    # Installation
-    install_applications
-
-    # Nettoyage
-    cleanup
+read_local_state() {
+    local row url options
+    REMOTES=$(flatpak_user remotes --columns=name,url,options) || fatal 'Lecture des dépôts personnels impossible.'
+    INSTALLED=$(flatpak_user list --app --columns=ref,origin) || fatal 'Lecture des applications personnelles impossible.'
+    row=$(printf '%s\n' "$REMOTES" | awk '$1 == "flathub" {print}')
+    HAS_FLATHUB=false
+    if [[ -n "$row" ]]; then
+        HAS_FLATHUB=true
+        url=$(printf '%s\n' "$row" | awk '{print $2}')
+        case "$url" in
+            https://dl.flathub.org/repo|https://dl.flathub.org/repo/|https://flathub.org/repo|https://flathub.org/repo/) ;;
+            *) fatal "Le dépôt personnel flathub utilise une URL inattendue : $url. Aucune correction automatique." ;;
+        esac
+        options=$(printf '%s\n' "$row" | awk '{$1=""; $2=""; print}')
+        case "$options" in
+            *disabled*|*no-gpg-verify*|*oci*) fatal 'Le dépôt flathub est désactivé ou ses options ne sont pas prises en charge.' ;;
+        esac
+    fi
+}
+origin_for() {
+    # La colonne ref de `flatpak list` omet le préfixe app/.
+    printf '%s\n' "$INSTALLED" | awk -v ref="${1#app/}" '$1 == ref {print $2}'
+}
+check_origins() {
+    local entry ref origin
+    for entry in "${applications[@]}"; do
+        ref="app/${entry%%:*}/$ARCH/stable"
+        origin=$(origin_for "$ref")
+        [[ -z "$origin" || "$origin" == flathub ]] || fatal "Origine différente pour $ref : $origin. Aucune migration automatique."
+    done
+}
+confirm() {
+    local answer
+    printf '%s [o/N] ' "$1"
+    IFS= read -r answer || return 1
+    case "$answer" in o|O|oui|Oui|y|Y|yes) return 0 ;; *) return 1 ;; esac
 }
 
-main
+read_local_state
+check_origins
+info 'Applications sélectionnées (installation personnelle, branche stable) :'
+show_applications_list
+if ! $HAS_FLATHUB; then info 'Ajout prévu : Flathub personnel depuis son descripteur HTTPS officiel.'; fi
+for entry in "${applications[@]}"; do
+    ref="app/${entry%%:*}/$ARCH/stable"
+    if [[ -n "$(origin_for "$ref")" ]]; then
+        info "À vérifier pour mise à jour : $ref"
+    else
+        info "À installer : $ref"
+    fi
+done
+info 'Une application présente uniquement au niveau système aura une copie personnelle.'
+if $DRY_RUN; then
+    info 'Simulation locale terminée : aucun fichier écrit et aucune installation effectuée.'
+    info 'La disponibilité distante et les nouvelles versions seront contrôlées après accord, en exécution réelle.'
+    if $CLEANUP; then info 'Nettoyage : serait proposé séparément, aucune suppression simulée comme réussie.'; fi
+    exit 0
+fi
+
+[[ -t 0 && -t 1 ]] || fatal 'Exécution réelle refusée sans terminal interactif. Utiliser --dry-run.'
+info 'Effets : inventaire privé, accès réseau et cache Flatpak, dépôt personnel éventuel, applications et runtimes nécessaires.'
+info 'Les applications déjà présentes pourront être mises à jour ; une liste ne remplace pas une sauvegarde de leurs données.'
+if ! confirm 'Autoriser ces opérations ?'; then info 'Opération annulée ; aucun fichier écrit.'; exit 0; fi
+PREVIEW_REMOTES=$REMOTES
+PREVIEW_INSTALLED=$INSTALLED
+read_local_state
+check_origins
+[[ "$PREVIEW_REMOTES" == "$REMOTES" && "$PREVIEW_INSTALLED" == "$INSTALLED" ]] || fatal 'État local modifié pendant la confirmation. Relancer pour examiner le nouvel aperçu.'
+
+umask 077
+SNAPSHOT=$(mktemp -d /var/tmp/cachyos-flatpak.XXXXXXXX) || fatal 'Création de l’inventaire impossible.'
+printf '%s\n' "$REMOTES" > "$SNAPSHOT/depots-avant.txt"
+flatpak_user list --all --columns=ref,origin,active > "$SNAPSHOT/references-avant.txt"
+printf '%s\n' "${applications[@]}" > "$SNAPSHOT/selection.txt"
+: > "$SNAPSHOT/nouvelles-applications.txt"
+cat > "$SNAPSHOT/LIRE-MOI.txt" <<'EOF'
+Inventaire personnel Flatpak, pas une sauvegarde des données ni des runtimes.
+references-avant/apres.txt : références, origines et commits actifs abrégés.
+depots-avant/apres.txt : dépôts personnels, URL et options.
+nouvelles-applications.txt : références nouvellement installées et vérifiées.
+Le nettoyage éventuel peut retirer des runtimes inutilisés.
+
+Pour retirer une nouvelle application, examiner nouvelles-applications.txt puis
+exécuter manuellement flatpak uninstall --user REFERENCE (sans --delete-data).
+Ne pas désinstaller une application précédemment présente pour annuler sa mise à jour.
+Un retour à un ancien commit dépend de sa disponibilité et de la compatibilité
+des runtimes et des données ; il n'est jamais automatisé ici.
+Un dépôt ajouté peut être retiré manuellement avec flatpak remote-delete --user
+flathub, uniquement lorsqu'il n'est plus utilisé et après examen.
+EOF
+info "Inventaire : $SNAPSHOT"
+if ! $HAS_FLATHUB; then
+    flatpak_user remote-add --if-not-exists flathub "$FLATHUB_DESCRIPTOR" || fatal 'Ajout de Flathub personnel en échec.'
+fi
+read_local_state
+$HAS_FLATHUB || fatal 'Flathub personnel absent après son ajout.'
+check_origins
+
+# Vérifier toutes les références distantes avant la première installation.
+# Ne pas utiliser --cached en simulation : cette option préfère le cache,
+# mais ne garantit pas l'absence de requêtes réseau.
+unavailable=0
+for entry in "${applications[@]}"; do
+    ref="app/${entry%%:*}/$ARCH/stable"
+    if resolved=$(flatpak_user remote-info --show-ref flathub "$ref"); then
+        if [[ "$resolved" != "$ref" ]]; then
+            printf 'Référence inattendue : %s (attendue : %s)\n' "$resolved" "$ref" >&2
+            unavailable=$((unavailable + 1))
+        fi
+    else
+        printf 'Référence indisponible ou non vérifiable : %s\n' "$ref" >&2
+        unavailable=$((unavailable + 1))
+    fi
+done
+(( unavailable == 0 )) || fatal "$unavailable référence(s) non vérifiable(s). Aucune application installée ; le dépôt et le cache ont pu être créés."
+
+installed_count=0
+updated_count=0
+unchanged_count=0
+failed_count=0
+for entry in "${applications[@]}"; do
+    ref="app/${entry%%:*}/$ARCH/stable"
+    before_commit=''
+    if [[ -n "$(origin_for "$ref")" ]]; then
+        before_commit=$(flatpak_user info --show-commit "$ref") || fatal "Lecture du commit installé impossible : $ref."
+        if ! flatpak_user update "$ref"; then
+            printf 'Échec ou annulation de la mise à jour : %s\n' "$ref" >&2
+            failed_count=$((failed_count + 1)); continue
+        fi
+    elif ! flatpak_user install flathub "$ref"; then
+        printf 'Échec ou annulation de l’installation : %s\n' "$ref" >&2
+        failed_count=$((failed_count + 1)); continue
+    fi
+    if ! after_commit=$(flatpak_user info --show-commit "$ref") ||
+       ! after_origin=$(flatpak_user info --show-origin "$ref") ||
+       [[ -z "$after_commit" || "$after_origin" != flathub ]]; then
+        printf 'État final non conforme ou non vérifiable : %s\n' "$ref" >&2
+        failed_count=$((failed_count + 1)); continue
+    fi
+    if [[ -z "$before_commit" ]]; then
+        installed_count=$((installed_count + 1))
+        printf '%s\n' "$ref" >> "$SNAPSHOT/nouvelles-applications.txt"
+    elif [[ "$before_commit" != "$after_commit" ]]; then
+        updated_count=$((updated_count + 1))
+    else
+        unchanged_count=$((unchanged_count + 1))
+    fi
+done
+if $CLEANUP && (( failed_count == 0 )); then
+    if confirm 'Proposer à Flatpak de supprimer les runtimes personnels inutilisés ?'; then
+        if ! flatpak_user uninstall --unused; then
+            info 'Le nettoyage a échoué ou a été annulé ; examiner les messages Flatpak.'
+            failed_count=$((failed_count + 1))
+        fi
+    else
+        info 'Nettoyage ignoré.'
+    fi
+fi
+flatpak_user list --all --columns=ref,origin,active > "$SNAPSHOT/references-apres.txt"
+flatpak_user remotes --columns=name,url,options > "$SNAPSHOT/depots-apres.txt"
+printf 'Bilan : %s nouvelles, %s mises à jour, %s inchangées, %s erreurs.\n' "$installed_count" "$updated_count" "$unchanged_count" "$failed_count"
+info "Inventaires : $SNAPSHOT"
+(( failed_count == 0 )) || fatal 'Exécution terminée avec des erreurs ; consulter les messages ci-dessus.'
+info 'Installation et vérification terminées sans erreur.'

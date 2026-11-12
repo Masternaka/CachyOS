@@ -1,0 +1,21 @@
+# Cache téléchargé uniquement à votre demande avec tldr --update.
+[display]
+compact = false
+use_pager = true
+
+[updates]
+auto_update = false
+
+[style.command_name]
+foreground = "cyan"
+bold = true
+
+[style.example_text]
+foreground = "green"
+
+[style.example_code]
+foreground = "blue"
+
+[style.example_variable]
+foreground = "yellow"
+underline = true

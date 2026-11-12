@@ -1,0 +1,16 @@
+# Yazi 26.9 : tri naturel et panneaux parent / fichiers / aperçu.
+[mgr]
+ratio = [1, 4, 3]
+sort_by = "natural"
+sort_sensitive = false
+sort_dir_first = true
+show_hidden = false
+show_symlink = true
+linemode = "size"
+scrolloff = 5
+
+[preview]
+wrap = "no"
+tab_size = 4
+max_width = 1200
+max_height = 900

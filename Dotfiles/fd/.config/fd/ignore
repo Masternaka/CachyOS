@@ -1,0 +1,3 @@
+# Exclusions globales supplémentaires ; fd --no-ignore permet de les contourner.
+.DS_Store
+__pycache__/

@@ -1,0 +1,38 @@
+# Catppuccin Mocha : invite compacte, sans module qui consulte le réseau.
+# Variante Stow ; l'installateur par copie conserve son preset Powerline séparé.
+add_newline = true
+palette = "catppuccin_mocha"
+format = "$directory$git_branch$git_status$cmd_duration$line_break$character"
+command_timeout = 700
+
+[directory]
+style = "bold blue"
+truncation_length = 3
+truncate_to_repo = true
+read_only = " "
+
+[git_branch]
+symbol = " "
+style = "bold mauve"
+format = "on [$symbol$branch]($style) "
+
+[git_status]
+style = "peach"
+format = "([$all_status$ahead_behind]($style) )"
+
+[cmd_duration]
+min_time = 2000
+style = "yellow"
+format = "took [$duration]($style) "
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
+
+[palettes.catppuccin_mocha]
+blue = "#89b4fa"
+mauve = "#cba6f7"
+peach = "#fab387"
+yellow = "#f9e2af"
+green = "#a6e3a1"
+red = "#f38ba8"

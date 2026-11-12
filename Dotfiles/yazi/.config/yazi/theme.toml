@@ -1,0 +1,17 @@
+# Couleurs Catppuccin Mocha intégrées ; aucun flavor à télécharger.
+[mgr]
+cwd = { fg = "#89b4fa" }
+find_keyword = { fg = "#f9e2af", bold = true }
+find_position = { fg = "#fab387", italic = true }
+symlink_target = { fg = "#94e2d5" }
+marker_copied = { fg = "#a6e3a1", bg = "#a6e3a1" }
+marker_cut = { fg = "#f38ba8", bg = "#f38ba8" }
+marker_selected = { fg = "#cba6f7", bg = "#cba6f7" }
+border_style = { fg = "#585b70" }
+
+[status]
+overall = { fg = "#cdd6f4", bg = "#313244" }
+permissions_t = { fg = "#89b4fa" }
+permissions_r = { fg = "#a6e3a1" }
+permissions_w = { fg = "#f9e2af" }
+permissions_x = { fg = "#f38ba8" }

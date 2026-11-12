@@ -1,0 +1,137 @@
+#############################################################
+#             GHOSTTY CONFIG — LINUX / NIRI                #
+#############################################################
+
+# ~/.config/ghostty/config — Linux / Wayland avec Niri (interface GTK)
+
+# ── Apparence ──────────────────────────────────────────────
+
+# Thème
+theme = dark:Catppuccin Mocha,light:Catppuccin Latte
+
+# Police
+font-family = "JetBrainsMono Nerd Font"
+font-size = 14
+
+# Transparence & flou
+background-opacity = 0.85
+background-opacity-cells = true
+# Conserve la demande de flou, mais ne suffit pas à garantir son activation sous Niri.
+# Niri >= 26.04 : exemple à intégrer séparément à sa configuration après validation
+# de la version installée et de l'app-id avec `niri msg windows` :
+# window-rule {
+#     match app-id=r#"^com\.mitchellh\.ghostty$"#
+#     background-effect {
+#         blur true
+#     }
+# }
+# Cet exemple est commenté : ce fichier ne modifie pas la configuration Niri.
+background-blur = true
+
+# Marges internes
+window-padding-x = 12
+window-padding-y = 12
+
+# ── Fenêtre ────────────────────────────────────────────────
+# Laisser Niri négocier les décorations, sans imposer une barre de titre GTK.
+window-decoration = auto
+gtk-toolbar-style = flat
+initial-window = true
+quit-after-last-window-closed = true
+title = ""
+resize-overlay = after-first
+resize-overlay-position = bottom-right
+
+# Taille initiale indicative, surtout pour les fenêtres flottantes.
+# En mosaïque, Niri détermine la taille et le placement effectifs.
+window-width  = 135
+window-height = 35
+# Le placement et la gestion des fenêtres relèvent de Niri.
+
+# ── Curseur ────────────────────────────────────────────────
+cursor-style = block
+cursor-style-blink = true
+cursor-click-to-move = true
+# Conserve le curseur en bloc à l'invite du shell.
+shell-integration-features = no-cursor
+
+# ── Défilement ─────────────────────────────────────────────
+scrollback-limit = 10000
+scrollbar = system
+
+# ── Onglets & splits ───────────────────────────────────────
+window-new-tab-position = end
+unfocused-split-opacity = 0.85
+split-divider-color = #cba6f7
+
+# ── Comportement ───────────────────────────────────────────
+confirm-close-surface = true
+bell-features = attention
+
+# ── Notifications et son ───────────────────────────────────
+notify-on-command-finish = unfocused
+notify-on-command-finish-action = no-bell,notify
+notify-on-command-finish-after = 15s
+
+
+# ── Matériel ───────────────────────────────────────────────
+
+# Souris
+mouse-hide-while-typing = true
+focus-follows-mouse = false
+right-click-action = context-menu
+
+# Clavier : Alt est utilisé directement, sans remappage spécifique.
+
+# == LIENS & PRESSE-PAPIER ==
+link-url = true
+link-previews = true
+copy-on-select = true
+clipboard-trim-trailing-spaces = true
+clipboard-paste-bracketed-safe = true
+
+# ── Raccourcis Linux : F11 et Ctrl+Maj (ghostty +list-actions) ───────────────────────────────
+# Pas de raccourcis Super ici : ils restent disponibles pour Niri.
+keybind = f11=toggle_fullscreen
+keybind = ctrl+shift+h=goto_split:left
+keybind = ctrl+shift+l=goto_split:right
+keybind = ctrl+shift+k=goto_split:top
+keybind = ctrl+shift+j=goto_split:bottom
+
+# Onglets
+keybind = ctrl+shift+t=new_tab
+keybind = ctrl+shift+w=close_surface
+keybind = ctrl+shift+left=move_tab:-1
+keybind = ctrl+shift+right=move_tab:+1
+keybind = ctrl+tab=next_tab
+keybind = ctrl+shift+tab=previous_tab
+# Renommer l'onglet courant
+keybind = ctrl+shift+i=prompt_tab_title
+
+# Splits
+keybind = ctrl+shift+d=new_split:right
+keybind = ctrl+shift+alt+d=new_split:down
+keybind = ctrl+shift+enter=toggle_split_zoom
+
+# Redimensionnement des divisions avec Ctrl+Maj+Alt et les flèches
+keybind = ctrl+shift+alt+left=resize_split:left,20
+keybind = ctrl+shift+alt+right=resize_split:right,20
+keybind = ctrl+shift+alt+up=resize_split:up,20
+keybind = ctrl+shift+alt+down=resize_split:down,20
+
+# Navigation entre les commandes dans l'historique
+keybind = ctrl+shift+up=jump_to_prompt:-1
+keybind = ctrl+shift+down=jump_to_prompt:1
+
+# Rechercher le texte sélectionné et ouvrir l'historique dans l'éditeur
+keybind = ctrl+shift+f=search_selection
+keybind = ctrl+shift+s=write_scrollback_file:open
+
+# Divers
+keybind = ctrl+shift+e=equalize_splits
+# Réinitialisation du terminal (en cas d'affichage bloqué)
+keybind = ctrl+shift+r=reset
+
+# Préférences propres à la machine, facultatives et hors du paquet.
+# Chemin personnel indépendant de l'emplacement du clone.
+config-file = ?~/.config/ghostty-local.conf

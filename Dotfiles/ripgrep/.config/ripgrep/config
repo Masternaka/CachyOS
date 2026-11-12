@@ -1,0 +1,5 @@
+# Une option par ligne ; activé par RIPGREP_CONFIG_PATH dans le paquet Zsh.
+--smart-case
+# Ne pas rechercher le contenu interne des dépôts Git.
+--glob=!.git/**
+# Les fichiers cachés restent exclus par défaut ; utiliser rg --hidden au besoin.

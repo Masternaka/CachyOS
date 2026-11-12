@@ -1,0 +1,5 @@
+# Thème ANSI intégré : reprend les couleurs du terminal, sans thème externe.
+--theme=ansi
+--style=numbers,changes,header
+--paging=auto
+# ccat garde explicitement --paging=never pour une lecture sans pager.

@@ -1,0 +1,16 @@
+# Catppuccin Mocha ; aucun fetch réseau ni contrôle de mise à jour automatique.
+gui:
+  nerdFontsVersion: "3"
+  showFileIcons: true
+  theme:
+    activeBorderColor: ["#89b4fa", "bold"]
+    inactiveBorderColor: ["#585b70"]
+    searchingActiveBorderColor: ["#fab387", "bold"]
+    optionsTextColor: ["#89b4fa"]
+    selectedLineBgColor: ["#313244"]
+    unstagedChangesColor: ["#f38ba8"]
+    defaultFgColor: ["#cdd6f4"]
+git:
+  autoFetch: false
+update:
+  method: never

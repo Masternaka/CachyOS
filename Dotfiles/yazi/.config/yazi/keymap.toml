@@ -1,0 +1,15 @@
+# Ajouter ces raccourcis aux touches natives, sans les remplacer toutes.
+[[mgr.prepend_keymap]]
+on = ["g", "h"]
+run = "cd ~"
+desc = "Dossier personnel"
+
+[[mgr.prepend_keymap]]
+on = ["g", "c"]
+run = "cd ~/.config"
+desc = "Configurations utilisateur"
+
+[[mgr.prepend_keymap]]
+on = ["g", "/"]
+run = "cd /"
+desc = "Racine du système de fichiers"
