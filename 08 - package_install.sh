@@ -105,6 +105,8 @@ PACKAGES=(
       openai-codex
       claude-desktop
       claude-code
+      opencode
+      opencode-desktop
 
   )
 
@@ -318,4 +320,3 @@ done
 info "Transaction terminée : ${#PACKAGES[@]} paquets demandés présents, dont $new_count nouvellement installés."
 info "Inventaires et versions avant/après : $SNAPSHOT"
 info 'Les autres changements du système sont consignés par Pacman. Cache conservé.'
-
