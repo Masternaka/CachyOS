@@ -10,9 +10,9 @@ autoriser. Les commandes des guides sont des exemples à exécuter volontairemen
 | Document | Contenu |
 | --- | --- |
 | [README du dépôt](../README.md) | Scripts actuels, privilèges, prérequis, services, pare-feu et Pacman |
-| [Paquets natifs](package-install.md) | 47 paquets, provenance, mises à jour et inventaires |
+| [Paquets natifs](package-install.md) | 62 paquets, provenance, mises à jour et inventaires |
 | [Applications Flatpak](flatpak-install.md) | 13 applications personnelles, Flathub, confirmations et nettoyage facultatif |
-| [Zsh et outils du terminal](zsh.md) | 15 modules, plugins sans gestionnaire, alias, polices, copies/Stow et restauration |
+| [Zsh et outils du terminal](zsh.md) | 16 modules, plugins sans gestionnaire, alias, polices, copies/Stow et restauration |
 | [Catalogue Dotfiles](../Dotfiles/README.md) | 17 paquets Stow, dont Ghostty et Fastfetch séparés |
 | [Configuration Kitty](../Dotfiles/kitty/.config/kitty/README.md) | Réglages actuels, thèmes, police et déploiement sur CachyOS/Niri |
 | [Configuration Fastfetch](../Dotfiles/fastfetch/.config/fastfetch/README.md) | Affichage système, personnalisation et déploiement manuel |
@@ -35,27 +35,20 @@ Les inventaires des installations Pacman et Flatpak ne remplacent pas une
 sauvegarde système ou des données personnelles. La restauration des fichiers
 proposée par l'installateur Zsh n'annule pas les installations de logiciels.
 
-## Validation et écarts connus
+## Validation et limites
 
-La mise à jour documentaire du 12 novembre 2026 a vérifié les noms de scripts,
-les liens locaux et la cohérence des listes avec les fichiers du dépôt. Elle
-n'a exécuté aucune installation, aucune configuration système et aucun Stow
-dans le dossier personnel. Les validations natives CachyOS/Niri restent à faire.
+Les références des scripts et les listes attendues des tests ont été actualisées.
+Le catalogue actuel comprend 62 paquets natifs, 13 applications Flatpak, 17 paquets
+Stow et 16 modules de l'installateur Zsh. La sélection native par groupes ne change
+pas la liste par défaut. Les noms attendus et les références documentaires sont
+contrôlés automatiquement.
 
-Les tests simulés précédemment réussis ne constituent pas un résultat de la
-suite entière pour l'état actuel. Des écarts ont été identifiés à la lecture :
+- [Diagnostic et validation](validation.md) : lecture seule, tests isolés et CI.
+- [Pare-feu](firewalld.md) : sélection des services, sauvegarde et migration séparée.
+- [Anciens modèles Zsh](../config/zsh/README.md) : archives conservées, sources actives.
 
-| Contrôle | Écart à actualiser |
-| --- | --- |
-| `tests/test_firewalld_settings.py` | Référence encore l'ancien `03 - firewalld_settings.sh` ; le fichier actuel est `02 - firewalld_settings.sh`. |
-| `tests/test_pacman_settings.py` | Référence encore l'ancien `04 - pacman_settings.sh` ; le fichier actuel est `03 - pacman_settings.sh`. |
-| `tests/test_package_install.py` | Attend 45 paquets et 44 nouvelles installations dans sa fixture, avant l'activation de Distrobox et Podman ; la liste actuelle en contient 47. |
-| `tests/test_dotfiles.py` | Attend 15 paquets Stow ; le dossier en contient 17 avec Ghostty et Fastfetch. |
-
-L'aide intégrée de `03 - pacman_settings.sh` utilise également son ancien numéro.
-Les commandes de cette documentation utilisent le nom actuel. Ces écarts de
-code et de tests ne sont pas modifiés dans le cadre de la mise à jour documentaire.
-
-Les commandes de validation figurent dans chaque guide. Avant de lancer la
-suite complète, actualiser les références et assertions ci-dessus. Aucun outil
-manquant ne doit être installé automatiquement pour effectuer les contrôles.
+Les tests simulés ne valident pas le comportement natif de Pacman, firewalld,
+Flatpak, Niri ou des applications. Un outil absent produit un contrôle ignoré ;
+aucun outil n'est téléchargé automatiquement. L'exécution du workflow GitHub reste
+à confirmer après une publication autorisée. Aucun changement système n'a été
+appliqué dans le cadre de ces corrections.

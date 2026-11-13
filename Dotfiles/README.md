@@ -6,6 +6,8 @@ présence dans le dépôt. Les 17 sous-dossiers ci-dessous sont des paquets Stow
 autonomes. Le script `04 - install_zsh.sh` sait déployer les 15 modules de Zsh à
 Foot par copies ou avec Stow, après un plan et des confirmations : voir le
 [guide](../docs/zsh.md). Ghostty et Fastfetch se déploient séparément.
+Le seizième module de l'installateur, `duf`, installe seulement l'outil : aucun
+fichier de configuration ni paquet Stow n'est nécessaire.
 Son contenu reproduit les chemins relatifs au dossier personnel cible.
 
 ```text
@@ -213,10 +215,9 @@ installé pour les vérifications. Un parseur manquant produit aussi un test ign
 
 Sur l'hôte de préparation, Stow et les applications de personnalisation concernées
 ne sont pas disponibles ; Zsh et Git sont utilisés pour les contrôles décrits.
-Le test de nombre de paquets attend encore 15 sous-dossiers alors que 17 sont
-présents. Ghostty et Fastfetch nécessitent aussi une validation native distincte :
-ne pas annoncer une suite entièrement réussie avec cette arborescence sans
-actualiser les contrôles. Voir les [écarts documentés](../docs/README.md#validation-et-écarts-connus).
+Le catalogue attendu est maintenant vérifié par les noms explicites des 17 paquets.
+Ghostty et Fastfetch nécessitent aussi une validation native distincte. Voir le
+[guide de validation](../docs/validation.md) pour les outils absents et les limites.
 Le rendu et le comportement natif sous CachyOS restent à valider.
 Aucun déploiement dans le dossier personnel n'a été effectué.
 

@@ -15,7 +15,7 @@ L'aide et la liste ne nécessitent pas Flatpak. La simulation exige Linux,
 Flatpak, Distrobox et Podman déjà disponibles. Ces deux derniers sont les
 prérequis hôte de BoxBuddy, déjà prévus dans le script de paquets ; le script
 Flatpak ne les installe pas et ne modifie pas leur configuration.
-Les deux paquets sont actifs dans `08 - package_install.sh` (47 paquets au total).
+Les deux paquets sont actifs dans `08 - package_install.sh` (62 paquets au total).
 Le paquet `flatpak` n'y figure pas : vérifier sa présence avant cette étape.
 
 Les [paquets natifs](package-install.md) proviennent des dépôts Pacman ; les

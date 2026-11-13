@@ -21,11 +21,17 @@ Pacman. Elle ne crée aucun lien, fichier, journal, sauvegarde ou cache et ne
 contacte pas GitHub. Les fichiers à créer ou remplacer et leur état initial sont
 annoncés. Les options inconnues et les modules mal formés sont refusés.
 
-Les quinze modules sont sélectionnés par défaut :
+Les seize modules sont sélectionnés par défaut :
 
 ```text
-zsh,starship,yazi,btop,tealdeer,bat,fzf,zoxide,eza,ripgrep,fd,delta,lazygit,kitty,foot
+zsh,starship,yazi,btop,tealdeer,bat,fzf,zoxide,eza,ripgrep,fd,delta,lazygit,kitty,foot,duf
 ```
+
+Le module `duf` propose le paquet du même nom, disponible dans le
+[dépôt Extra d'Arch](https://archlinux.org/packages/extra/x86_64/duf/), après
+vérification dans les dépôts configurés. La commande `duf` affiche l'espace total,
+utilisé et disponible des systèmes de fichiers. Elle ne demande aucun fichier de
+configuration ni paquet Stow ; `df` et ses alias existants sont conservés.
 
 Le dossier Dotfiles contient 17 paquets Stow au total. Les configurations
 supplémentaires `ghostty` et `fastfetch` ne sont pas des modules de cet
@@ -236,9 +242,9 @@ de shell réel ou déploiement dans le dossier personnel n'est effectué pendant
 tests. Le rendu Kitty/Foot, les vrais paquets et les accès réseau sous CachyOS
 restent à valider sur la machine cible avec autorisation.
 
-Le test de structure Dotfiles attend encore 15 paquets, avant l'ajout de Ghostty
-et Fastfetch. Les succès de validation antérieurs ne valent donc pas pour toute
-l'arborescence actuelle ; voir les [écarts connus](README.md#validation-et-écarts-connus).
+Le test de structure vérifie les noms explicites des 17 paquets Stow, y compris
+Ghostty et Fastfetch. Le module `duf` n'est pas un paquet Stow ; il est testé
+séparément en sélection seule ou mixte. Voir le [guide de validation](validation.md).
 
 Références : [Kitty](https://sw.kovidgoyal.net/kitty/conf/#fonts),
 [Foot](https://man.archlinux.org/man/foot.ini.5.en),

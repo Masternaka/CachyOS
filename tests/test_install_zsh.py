@@ -119,7 +119,7 @@ class InstallZshTests(unittest.TestCase):
         self.bin = self.root / 'bin'; self.bin.mkdir()
         fake = self.root / 'fake'; fake.write_text('#!' + sys.executable + '\n' + FAKE); fake.chmod(0o755)
         for name in ['id', 'getent', 'flock', 'pacman', 'sudo', 'zsh', 'starship', 'chsh', 'fzf', 'zoxide', 'git',
-                     'yazi', 'btop', 'tldr', 'bat', 'eza', 'rg', 'fd', 'delta', 'lazygit', 'kitty', 'foot', 'fc-match', 'stow']:
+                     'yazi', 'btop', 'tldr', 'bat', 'eza', 'rg', 'fd', 'delta', 'lazygit', 'kitty', 'foot', 'duf', 'fc-match', 'stow']:
             (self.bin / name).symlink_to(fake)
         (self.root / 'shell').write_text('/bin/bash')
         self.shells.write_text(str(self.bin / 'zsh') + '\n/bin/bash\n')
@@ -209,6 +209,33 @@ class InstallZshTests(unittest.TestCase):
         self.assertEqual(self.run_script(answers='o\no\nn\nn\n').returncode, 0)
         self.assertIn(['pacman', '-Syu', '--needed', 'kitty'], self.calls())
         self.assertFalse(any('--noconfirm' in call for call in self.calls()))
+
+    def test_duf_is_selected_by_default_and_installation_requires_consent(self):
+        self.scenario['missing'] = ['duf']
+        result = self.run_script('--dry-run', answers='')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('pacman -Syu --needed duf', result.stdout)
+        self.assertFalse(self.backups.exists())
+        self.assertNotEqual(self.run_script('--only', 'duf', answers='n\n').returncode, 0)
+        self.assertFalse((self.root / 'installed').exists())
+        result = self.run_script('--only', 'duf', answers='o\no\n')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(['pacman', '-Syu', '--needed', 'duf'], self.calls())
+        self.assertEqual(self.conf.read_text(), self.original)
+        self.assertEqual(json.loads((self.session() / 'journal.json').read_text())['files'], [])
+
+    def test_duf_does_not_require_a_stow_package(self):
+        result = self.run_script('--mode', 'stow', '--only', 'duf', answers='o\n')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(any(call[0] == 'stow' for call in self.calls()))
+        self.assertEqual(self.conf.read_text(), self.original)
+        result = self.run_script('--mode', 'stow', '--only', 'duf,btop', answers='o\n')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((self.home / '.config/btop/btop.conf').is_symlink())
+        stow_calls = [call for call in self.calls() if call[0] == 'stow']
+        self.assertEqual(len(stow_calls), 2)
+        for call in stow_calls:
+            self.assertEqual(call[call.index('--stow') + 1:], ['btop'])
 
     def test_stow_is_proposed_and_installed_in_copy_mode_without_creating_links(self):
         self.scenario['missing'] = ['stow']

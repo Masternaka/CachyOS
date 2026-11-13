@@ -1,7 +1,8 @@
 # Installation des logiciels
 
-Le script `08 - package_install.sh` prépare 47 paquets et les installe dans une
-seule transaction `pacman -Syu --needed dépôt/paquet…`, après confirmation.
+Le script `08 - package_install.sh` propose 62 paquets par défaut et installe la
+sélection dans une seule transaction `pacman -Syu --needed dépôt/paquet…`, après
+confirmation.
 Il remplace l'ancien client `tldr` par `tealdeer`, déjà configuré par le script Zsh.
 Les autres choix actifs et les exemples commentés sont conservés.
 Distrobox et Podman sont maintenant actifs dans la liste pour préparer BoxBuddy.
@@ -33,55 +34,66 @@ Aucune option `--yes` ou `--noconfirm` n'est prévue.
 
 Avec `--needed`, un paquet déjà à jour n'est pas réinstallé. Une version plus
 récente est installée pendant la mise à jour complète. `-Syu` met également à
-jour les paquets du système qui ne font pas partie des 47 cibles explicites.
+jour les paquets du système qui ne font pas partie des cibles sélectionnées.
 
 `distrobox` et `podman` sont installés sur l'hôte par cette liste. Le
 [script Flatpak](flatpak-install.md) vérifie ensuite leur présence pour BoxBuddy,
 sans les réinstaller. Le paquet `flatpak` lui-même ne fait pas partie de cette
 liste : il doit déjà être disponible avant d'utiliser ce second script.
 
-## Provenance des paquets
+## Choisir les groupes
 
-CachyOS utilise à la fois ses dépôts optimisés et les dépôts Arch stables.
-Le [wiki officiel](https://wiki.cachyos.org/features/optimized_repos/) indique de
-conserver `cachyos`, `core`, `extra` et `multilib` avec les variantes optimisées.
-Le script n'exige donc pas que chaque paquet porte littéralement le dépôt
-`cachyos` : il accepte les sources officielles normalement utilisées par CachyOS.
+Sans `--groups`, la sélection complète existante est conservée. Les groupes se
+combinent avec `--list` et `--dry-run`, sans appel système pour la liste :
 
-Avant toute écriture, le script :
+```bash
+bash "08 - package_install.sh" --list-groups
+bash "08 - package_install.sh" --groups virtualisation,terminal --list
+bash "08 - package_install.sh" --groups virtualisation,terminal --dry-run
+```
 
-1. Lit les dépôts activés avec `pacman-conf --repo-list`, qui résout les inclusions.
-2. Refuse tout dépôt hors de la liste stable autorisée, même pour les dépendances.
-3. Exige au moins un dépôt CachyOS et cherche chaque nom exact dans `pacman -Sl`.
-4. Respecte l'ordre des dépôts configurés et affiche chaque cible `dépôt/paquet`.
-5. Revalide les dépôts, la configuration effective et les cibles après confirmation.
-6. Passe les cibles qualifiées à Pacman dans une transaction complète avec mise à jour.
+Après autorisation de l'installation sur la cible, retirer `--dry-run`. Même avec
+un seul groupe, la transaction `-Syu` met à jour tout le système. Aucun groupe ne
+configure les services ou les applications. La sélection de `langues` ne force
+pas le groupe `internet` ; Pacman décide des dépendances réelles.
 
-Liste autorisée : `core`, `extra`, `multilib`, `cachyos`, `cachyos-v3`,
-`cachyos-v4`, `cachyos-znver4`, `cachyos-core-v3`, `cachyos-extra-v3`,
-`cachyos-core-v4`, `cachyos-extra-v4`, `cachyos-core-znver4`,
-`cachyos-extra-znver4`. Un nouveau nom officiel devra être vérifié et ajouté
-explicitement. Les dépôts de test, Chaotic-AUR et les dépôts personnels bloquent
-le script ; il ne modifie pas automatiquement leur configuration.
+### Catalogue actuel
 
-Aucun appel à Yay, Paru, npm, curl, Git ou à l'AUR n'est utilisé pour installer.
-Les miroirs, clés et règles de signature restent ceux de Pacman ; le contrôle
-ne constitue pas un audit de leur configuration ni de la provenance historique
-des paquets déjà présents. Les scripts et hooks des paquets peuvent modifier
-le système pendant l'installation.
+| Groupe | Paquets |
+| --- | --- |
+| `utilitaires` | `catfish`, `flameshot`, `gnome-disk-utility`, `gparted`, `qbittorrent`, `transmission-qt`, `lshw`, `fwupd`, `timeshift`, `7zip`, `stow` |
+| `polices` | `ttf-jetbrains-mono-nerd`, `ttf-meslo-nerd`, `ttf-firacode-nerd` |
+| `langues` | `firefox-i18n-fr`, `thunderbird-i18n-fr` |
+| `securite` | `bitwarden`, `proton-pass`, `firewalld`, `firewall-config` |
+| `internet` | `firefox`, `thunderbird`, `brave-origin-bin` |
+| `multimedia` | `strawberry`, `mpv` |
+| `communication` | `vesktop-bin` |
+| `bureautique` | `libreoffice-fresh`, `libreoffice-fresh-fr`, `obsidian` |
+| `virtualisation` | `qemu-full`, `swtpm`, `virt-manager`, `distrobox`, `podman` |
+| `terminaux` | `kitty`, `foot`, `ghostty` |
+| `terminal` | `btop`, `fastfetch`, `tealdeer`, `git`, `curl`, `wget`, `yazi`, `starship` |
+| `developpement` | `micro`, `code`, `github-desktop`, `meld`, `zed` |
+| `ia` | `openai-codex`, `claude-desktop`, `claude-code`, `opencode`, `opencode-desktop` |
+| `kde` | `merkuro`, `dolphin-plugins`, `isoimagewriter`, `yakuake`, `krusader`, `systemdgenie`, `print-manager` |
 
-## Vérification documentaire du 12 novembre 2026
+## Provenance et contrôle sur la cible
 
-Les 47 noms ont été recherchés : 44 ont une fiche consultable dans le catalogue
-CachyOS (ou son alias `dashboard.cachyos.org`). Pour Catfish, Transmission Qt et
-Bitwarden, les pages du catalogue n'étaient pas accessibles avec l'outil de
-consultation ; les fiches officielles Arch confirment leur présence dans `extra`.
-Ces trois cas sont identifiés dans le tableau. Ce contrôle documentaire ne
-remplace pas celui des bases réellement activées sur la machine cible.
+Le script vérifie les bases locales et les dépôts configurés avant toute
+installation. Aucun recours automatique à l'AUR ni téléchargement externe.
+Consulter le [catalogue CachyOS](https://packages.cachyos.org/) pour la disponibilité
+courante. Les 62 noms actifs sont conservés tels que choisis dans le dépôt ; cette
+mise à jour ne prétend pas avoir revérifié individuellement leur disponibilité.
+Une entrée absente reste bloquante, sans substitution silencieuse.
 
-Les versions du catalogue peuvent être anciennes ; aucune version ni architecture
-optimisée n'est imposée dans le script. Le tableau donne une source constatée,
-pas obligatoirement celle que la priorité locale retiendra.
+### Relevé historique du 12 novembre 2026
+
+Le tableau suivant conserve les liens du précédent relevé documentaire. Il porte
+sur l'ancienne sélection de 47 paquets et ne décrit pas le catalogue actuel :
+notamment `brave-bin` a été remplacé par `brave-origin-bin` dans la sélection.
+Les dépôts indiqués sont ceux de ce relevé, pas une garantie de provenance actuelle.
+
+<details>
+<summary>Anciennes références de provenance</summary>
 
 | Paquet | Dépôt constaté | Fiche consultée |
 | --- | --- | --- |
@@ -133,6 +145,8 @@ pas obligatoirement celle que la priorité locale retiendra.
 | `claude-desktop` | `cachyos` | [Catalogue CachyOS](https://packages.cachyos.org/package/cachyos/x86_64/claude-desktop) |
 | `claude-code` | `cachyos` | [Catalogue CachyOS](https://packages.cachyos.org/package/cachyos/x86_64/claude-code) |
 
+</details>
+
 ## Inventaires et limites du retour arrière
 
 Après accord, un dossier privé de mode `0700` est créé sous
@@ -153,7 +167,7 @@ ressort de leurs scripts dédiés. Les applications peuvent nécessiter des éta
 supplémentaires avant leur utilisation.
 
 Toute transaction en erreur conserve un code non nul et les inventaires disponibles.
-La présence des 47 paquets est contrôlée après succès de Pacman. Le compteur final
+La présence de tous les paquets sélectionnés est contrôlée après succès de Pacman. Le compteur final
 concerne les paquets demandés nouvellement installés, hors dépendances ; les autres
 changements sont détaillés dans les inventaires et le journal Pacman.
 
@@ -170,7 +184,6 @@ de dépôts tiers, les paquets absents, la simulation sans écriture et les éch
 Ils ne téléchargent ni n'installent rien. Aucune transaction native sous CachyOS
 n'a été exécutée dans le cadre de la préparation de ces changements.
 
-Le test de taille de liste attend encore 45 paquets et son résumé attendu indique
-44 nouveaux paquets : ces assertions précèdent l'activation de Distrobox et Podman.
-Elles doivent être actualisées avant d'annoncer que la suite passe avec la liste
-actuelle. La présente mise à jour documentaire ne modifie pas les tests.
+Les tests attendent les noms explicites de la sélection actuelle. Ils vérifient
+également les groupes, leur union, les erreurs de sélection et la limitation des
+cibles de transaction. Une liste attendue doit être revue lors d'un ajout volontaire.

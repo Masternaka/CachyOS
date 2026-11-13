@@ -22,7 +22,9 @@ import sys
 import tempfile
 
 MODULES = ('zsh', 'starship', 'yazi', 'btop', 'tealdeer', 'bat', 'fzf', 'zoxide',
-           'eza', 'ripgrep', 'fd', 'delta', 'lazygit', 'kitty', 'foot')
+           'eza', 'ripgrep', 'fd', 'delta', 'lazygit', 'kitty', 'foot', 'duf')
+# Ces outils sont installés sans fichier de configuration ni paquet Stow.
+PACKAGE_ONLY = ('duf',)
 FONT = 'JetBrainsMono Nerd Font'
 START = '# >>> cachyos-zsh-font'
 END = '# <<< cachyos-zsh-font'
@@ -126,6 +128,8 @@ def prepare(args):
         raise Refused('Liste de paquets vide, inconnue ou dupliquée.')
     files, seen = [], set()
     for module in modules:
+        if module in PACKAGE_ONLY:
+            continue
         base = repo / 'Dotfiles' / module
         if not base.is_dir() or base.is_symlink():
             raise Refused('Paquet source absent ou symbolique : ' + str(base))
@@ -324,11 +328,12 @@ def deploy(args):
                     atomic_bytes(target, bytes.fromhex(entry['content']), entry['before'].get('mode', 0o600))
                 elif target.exists() or target.is_symlink():
                     target.unlink()
-            if args.mode == 'stow':
+            stow_modules = [module for module in plan['modules'] if module not in PACKAGE_ONLY]
+            if args.mode == 'stow' and stow_modules:
                 command = ['stow', '--dir=' + str(Path(args.repo).resolve() / 'Dotfiles'),
                            '--target=' + str(home), '--no-folding', '--verbose']
                 for operation in (['--simulate', '--stow'], ['--stow']):
-                    result = subprocess.run(command + operation + plan['modules'], cwd=session, capture_output=True, text=True)
+                    result = subprocess.run(command + operation + stow_modules, cwd=session, capture_output=True, text=True)
                     info(result.stdout + result.stderr)
                     if result.returncode:
                         raise Refused('Échec Stow ; restauration des fichiers sauvegardés.')

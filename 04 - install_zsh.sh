@@ -19,7 +19,7 @@ FZF_TAB_SOURCE=''
 SHELLS_FILE='/etc/shells'
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 DEPLOY_ENGINE="$SCRIPT_DIR/scripts/zsh_deploy.py"
-ALL_MODULES=(zsh starship yazi btop tealdeer bat fzf zoxide eza ripgrep fd delta lazygit kitty foot)
+ALL_MODULES=(zsh starship yazi btop tealdeer bat fzf zoxide eza ripgrep fd delta lazygit kitty foot duf)
 
 info() { printf '[INFO] %s\n' "$*" >&2; }
 warn() { printf '[!] %s\n' "$*" >&2; }
@@ -39,7 +39,7 @@ Utilisateur normal uniquement. Kitty et Foot utilisent JetBrainsMono Nerd Font.
 
   --dry-run, -n        Plan sans écriture, téléchargement ou installation
   --mode copy|stow     Copies (défaut) ou liens GNU Stow
-  --only LISTE         Modules séparés par virgules ; défaut : les 15 modules
+  --only LISTE         Modules séparés par virgules ; défaut : les 16 modules
   --no-theme           Conserver le thème existant ; ne pas déployer starship
   --replace-commands   Activer les alias remplaçant ls/cat/cp/mv/rm/etc.
   --extras             Compatibilité : fd, delta, lazygit sont inclus par défaut
@@ -47,7 +47,8 @@ Utilisateur normal uniquement. Kitty et Foot utilisent JetBrainsMono Nerd Font.
   --help, -h           Afficher l'aide
 
 Modules : zsh,starship,yazi,btop,tealdeer,bat,fzf,zoxide,eza,ripgrep,fd,delta,
-          lazygit,kitty,foot
+          lazygit,kitty,foot,duf
+duf affiche l'espace disque sans configuration à déployer ni alias pour df.
 Exemples :
   bash "04 - install_zsh.sh" --dry-run
   bash "04 - install_zsh.sh" --mode stow --only zsh,starship,kitty,foot

@@ -13,7 +13,7 @@ import sys
 import tempfile
 import unittest
 
-SCRIPT = Path(__file__).resolve().parents[1] / '04 - pacman_settings.sh'
+SCRIPT = Path(__file__).resolve().parents[1] / '03 - pacman_settings.sh'
 FAKE = r'''
 import json, os, sys
 from pathlib import Path
@@ -240,6 +240,39 @@ class PacmanSettingsTests(unittest.TestCase):
         self.assertEqual(self.conf.read_text(), self.original)
         self.assertIn('configuration précédente rétablie', result.stderr)
         self.assert_clean()
+
+    def test_latest_index_disambiguates_equal_backup_times(self):
+        self.assertEqual(self.run_script('--value', '8').returncode, 0)
+        self.assertEqual(self.run_script('--value', '7').returncode, 0)
+        expected = (self.backups / (self.backups / '.latest').read_text().strip()).read_text()
+        for backup in self.saved():
+            os.utime(backup, (1000, 1000))
+        self.assertEqual(self.run_script('--restore').returncode, 0)
+        self.assertEqual(self.conf.read_text(), expected)
+
+    def test_legacy_tied_dates_require_explicit_backup(self):
+        self.assertEqual(self.run_script('--value', '8').returncode, 0)
+        self.assertEqual(self.run_script('--value', '7').returncode, 0)
+        (self.backups / '.latest').unlink()
+        for backup in self.saved():
+            os.utime(backup, (1000, 1000))
+        before = self.conf.read_text()
+        result = self.run_script('--restore')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('indiscernables', result.stderr)
+        self.assertEqual(self.conf.read_text(), before)
+        self.assertEqual(self.run_script('--restore', str(self.saved()[0])).returncode, 0)
+
+    def test_invalid_latest_index_never_follows_external_paths(self):
+        self.assertEqual(self.run_script('--value', '8').returncode, 0)
+        marker = self.backups / '.latest'
+        marker.write_text('../pacman.conf\n')
+        before = self.conf.read_text()
+        self.assertNotEqual(self.run_script('--restore').returncode, 0)
+        self.assertEqual(self.conf.read_text(), before)
+        marker.unlink(); marker.symlink_to(self.conf)
+        self.assertNotEqual(self.run_script('--restore').returncode, 0)
+        self.assertEqual(self.conf.read_text(), before)
 
     def test_restore_can_recover_invalid_current_configuration(self):
         backup = self.root / 'valid-backup'

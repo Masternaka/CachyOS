@@ -13,12 +13,13 @@ DRY_RUN=false
 SNAPSHOT=''
 CANDIDATE=''
 BACKUP_FILE=''
+LATEST_CANDIDATE=''
 COMMIT_PENDING=false
 
 # Fonction d'affichage d'aide
 show_help() {
     cat <<'HELP'
-Usage : bash "04 - pacman_settings.sh" [OPTIONS]
+Usage : bash "03 - pacman_settings.sh" [OPTIONS]
 
   --restore [FICHIER]  Restaure une sauvegarde précise, sinon la plus récente
   --auto               Estime une valeur selon le CPU et la RAM (pas le réseau)
@@ -32,12 +33,12 @@ Sans mode explicite, une saisie interactive est nécessaire.
 0 désactive la directive locale ; la valeur effective attendue est 1.
 
 Exemples :
-  sudo bash "04 - pacman_settings.sh"                    # Mode interactif
-  bash "04 - pacman_settings.sh" --dry-run --auto         # Simulation
-  sudo bash "04 - pacman_settings.sh" --auto             # Estimation matérielle
-  sudo bash "04 - pacman_settings.sh" --value 5           # Définir à 5
-  sudo bash "04 - pacman_settings.sh" --silent --value 3  # Sans interaction
-  sudo bash "04 - pacman_settings.sh" --restore           # Dernière sauvegarde
+  sudo bash "03 - pacman_settings.sh"                    # Mode interactif
+  bash "03 - pacman_settings.sh" --dry-run --auto         # Simulation
+  sudo bash "03 - pacman_settings.sh" --auto             # Estimation matérielle
+  sudo bash "03 - pacman_settings.sh" --value 5           # Définir à 5
+  sudo bash "03 - pacman_settings.sh" --silent --value 3  # Sans interaction
+  sudo bash "03 - pacman_settings.sh" --restore           # Dernière sauvegarde
 HELP
 }
 
@@ -195,14 +196,26 @@ render_config() {
 
 # Fonction de restauration : choisir avant de créer une nouvelle sauvegarde.
 find_backup() {
-    local file
+    local file latest_name ambiguous=false
+    if [[ -z "$RESTORE_FILE" && ( -e "$BACKUP_DIR/.latest" || -L "$BACKUP_DIR/.latest" ) ]]; then
+        [[ -f "$BACKUP_DIR/.latest" && ! -L "$BACKUP_DIR/.latest" ]] || fatal 'Index de dernière sauvegarde refusé.'
+        IFS= read -r latest_name < "$BACKUP_DIR/.latest" || fatal 'Index de dernière sauvegarde illisible.'
+        [[ "$latest_name" == pacman.conf.bak.* && "$latest_name" != */* ]] || fatal 'Nom de dernière sauvegarde invalide.'
+        RESTORE_FILE="$BACKUP_DIR/$latest_name"
+    fi
     if [[ -z "$RESTORE_FILE" ]]; then
         shopt -s nullglob
         for file in "$BACKUP_DIR"/pacman.conf.bak.*; do
             [[ -f "$file" && ! -L "$file" ]] || continue
-            if [[ -z "$RESTORE_FILE" || "$file" -nt "$RESTORE_FILE" ]]; then RESTORE_FILE="$file"; fi
+            if [[ -z "$RESTORE_FILE" || "$file" -nt "$RESTORE_FILE" ]]; then
+                RESTORE_FILE="$file"
+                ambiguous=false
+            elif [[ ! "$RESTORE_FILE" -nt "$file" ]]; then
+                ambiguous=true
+            fi
         done
         shopt -u nullglob
+        if $ambiguous; then fatal 'Dates de sauvegardes indiscernables : choisir explicitement --restore FICHIER.'; fi
     fi
     [[ -n "$RESTORE_FILE" && -f "$RESTORE_FILE" && ! -L "$RESTORE_FILE" && -r "$RESTORE_FILE" ]] \
         || fatal "Aucune sauvegarde utilisable : ${RESTORE_FILE:-$BACKUP_DIR}"
@@ -223,7 +236,7 @@ cleanup() {
         fi
         status=1
     fi
-    for file in "$SNAPSHOT" "$CANDIDATE"; do
+    for file in "$SNAPSHOT" "$CANDIDATE" "$LATEST_CANDIDATE"; do
         if [[ -n "$file" ]]; then rm -f -- "$file" || status=1; fi
     done
     exit "$status"
@@ -295,6 +308,13 @@ fi
 # Le choix « plus récente » doit suivre la création de la sauvegarde, pas
 # l'ancienne date du fichier source préservée par cp -p.
 touch -- "$BACKUP_FILE"
+# Les comparaisons -nt de certains Bash ne distinguent pas deux créations dans
+# la même seconde. Enregistrer l'ordre des opérations sous le verrou existant.
+[[ ! -L "$BACKUP_DIR/.latest" && ( ! -e "$BACKUP_DIR/.latest" || -f "$BACKUP_DIR/.latest" ) ]] \
+    || fatal 'Index de dernière sauvegarde refusé ; configuration conservée.'
+LATEST_CANDIDATE=$(mktemp "$BACKUP_DIR/.latest.XXXXXXXX")
+printf '%s\n' "${BACKUP_FILE##*/}" > "$LATEST_CANDIDATE"
+mv -f -- "$LATEST_CANDIDATE" "$BACKUP_DIR/.latest"
 log_message "Sauvegarde avant modification : $BACKUP_FILE"
 # Vérifier que personne n'a remplacé ou modifié la configuration entre-temps.
 [[ ! -L "$PACMAN_CONF" ]] && cmp -s -- "$PACMAN_CONF" "$SNAPSHOT" \

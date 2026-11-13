@@ -12,10 +12,10 @@ d'exécution. Examiner leurs prérequis et leurs simulations avant de les appliq
 | Script | Fonction | Lancement réel |
 | --- | --- | --- |
 | `01 - systemd_services.sh` | Bluetooth, TRIM et nettoyage périodique du cache Pacman | Avec `sudo`, sans confirmation intégrée |
-| `02 - firewalld_settings.sh` | Pare-feu, zone par défaut, SSH et Samba | Privilèges via `sudo`, sans confirmation globale intégrée |
+| `02 - firewalld_settings.sh` | Pare-feu actif, zone et services explicitement choisis | Avec `sudo`, confirmation et retour arrière ciblé |
 | `03 - pacman_settings.sh` | Téléchargements parallèles de Pacman | Avec `sudo`, saisie interactive ou options explicites |
 | `04 - install_zsh.sh` | Outils du terminal, configurations et GNU Stow | Sans `sudo`, confirmations par étape |
-| `08 - package_install.sh` | 47 paquets des dépôts officiels utilisés par CachyOS | Sans `sudo` conseillé ; élévation pour Pacman après confirmation |
+| `08 - package_install.sh` | 62 paquets des dépôts officiels utilisés par CachyOS | Sans `sudo` conseillé ; élévation pour Pacman après confirmation |
 | `09 - flatpak_install.sh` | 13 applications Flathub personnelles | Sans `sudo`, confirmation obligatoire |
 
 Les [guides détaillés](docs/README.md) et le [catalogue Dotfiles](Dotfiles/README.md)
@@ -23,24 +23,26 @@ décrivent les fichiers, les sauvegardes et les limites de validation.
 
 Les services exigent notamment `bluez`, `util-linux` et `pacman-contrib` déjà
 présents. Le script Flatpak exige `flatpak`, `distrobox` et `podman`. Distrobox
-et Podman font partie des 47 paquets ; Flatpak n'est pas installé par cette liste.
+et Podman font partie des 62 paquets ; Flatpak n'est pas installé par cette liste.
 GNU Stow est proposé par l'installateur Zsh, même en mode copie.
 
 ## Installation des logiciels
 
-`08 - package_install.sh` vérifie ses 47 paquets dans les dépôts officiels
-activés sur CachyOS, affiche les cibles `dépôt/paquet`, puis demande confirmation
+`08 - package_install.sh` propose 62 paquets, avec une sélection facultative par
+groupes. Il vérifie la sélection dans les dépôts officiels activés sur CachyOS,
+affiche les cibles `dépôt/paquet`, puis demande confirmation
 avant une transaction Pacman avec mise à jour complète. Aucun recours à l'AUR,
 aucun nettoyage automatique du cache et aucun déploiement des Dotfiles.
 
 ```bash
 bash "08 - package_install.sh" --list
+bash "08 - package_install.sh" --groups virtualisation,terminal --list
 bash "08 - package_install.sh" --dry-run
 ```
 
 La simulation ne crée aucun fichier et n'utilise pas sudo. Les dépôts tiers ou
 de test activés et les paquets introuvables sont bloquants. Voir le
-[guide et la vérification de provenance des 47 paquets](docs/package-install.md)
+[guide du catalogue et du contrôle de provenance](docs/package-install.md)
 pour les sources consultées, les confirmations, les inventaires et leurs limites.
 
 Un paquet déjà installé et à jour est conservé grâce à `--needed`. Une version
@@ -67,10 +69,10 @@ personnelle, les inventaires et le nettoyage facultatif.
 
 ## Installation et configuration des outils du terminal
 
-`04 - install_zsh.sh` utilise [Dotfiles](Dotfiles/README.md) comme source commune
-pour les quinze modules : Zsh, Starship, Yazi, btop, Tealdeer, Bat, FZF, Zoxide,
-Eza, Ripgrep, fd, Delta, Lazygit, Kitty et Foot. Les deux terminaux sont configurés
-avec **JetBrainsMono Nerd Font**.
+`04 - install_zsh.sh` utilise [Dotfiles](Dotfiles/README.md) comme source des
+configurations et propose seize modules : Zsh, Starship, Yazi, btop, Tealdeer, Bat, FZF, Zoxide,
+Eza, Ripgrep, fd, Delta, Lazygit, Kitty, Foot et duf. Les deux terminaux sont configurés
+avec **JetBrainsMono Nerd Font**. `duf` ne nécessite aucun fichier à déployer.
 
 ```bash
 bash "04 - install_zsh.sh" --dry-run
@@ -141,29 +143,36 @@ hôte non root, les branches d'application sont testées sur une copie temporair
 qui contourne uniquement la garde root ; cette garde est testée séparément sur
 le script original. Ces tests ne remplacent pas une validation sous CachyOS.
 
-## Pare-feu : SSH et Samba
+## Pare-feu : sélection explicite des services
 
-`02 - firewalld_settings.sh` autorise les services firewalld `ssh` et `samba`
-dans la zone choisie (`home` par défaut), dans les configurations permanente
-et active, puis définit cette zone par défaut. Aucun rechargement global des
-règles n'est effectué. Les serveurs SSH et Samba ne sont ni installés ni démarrés.
+`02 - firewalld_settings.sh` configure un firewalld **déjà installé et actif**.
+Il n'installe plus de paquet, ne démarre pas de service et ne retire jamais UFW.
+Un UFW actif, activé au démarrage ou dans un état non pris en charge bloque le
+script. Une migration doit être préparée séparément depuis un accès local.
 
 ```bash
-bash "02 - firewalld_settings.sh" --dry-run
-# Variante pour une autre zone : ajouter --zone NOM_ZONE
+bash "02 - firewalld_settings.sh" --dry-run --services ssh,samba
+# SSH seul, autre zone :
+bash "02 - firewalld_settings.sh" --dry-run --zone home --services ssh
 ```
 
-Le script conserve aussi son comportement d'installation de firewalld et de
-suppression d'UFW. Examiner la simulation avant toute exécution réelle avec
-`sudo bash "02 - firewalld_settings.sh"`. Il n'y a pas de confirmation globale
-intégrée et certaines commandes utilisent `--noconfirm` : autoriser explicitement
-l'exécution après examen de l'aperçu. La zone par défaut ne remplace pas
-les affectations explicites des interfaces ou des connexions NetworkManager ;
-vérifier leur zone avec `sudo firewall-cmd --get-active-zones`.
+La sélection `--services` est obligatoire : `ssh`, `samba`, `ssh,samba` ou `none`.
+`none` n'ajoute aucun service ; les règles existantes sont conservées. Le script
+ajoute les règles manquantes dans les configurations active et permanente sans
+rechargement global, puis définit la zone par défaut. Les serveurs SSH et Samba
+ne sont ni installés ni démarrés. Les affectations explicites des interfaces et
+connexions ne sont pas changées. Les ouvertures portent sur toute la zone choisie.
 
-Les autorisations portent sur toute la zone choisie, sans restriction à un
-sous-réseau. Utiliser une zone adaptée au réseau concerné. Les tests locaux
-simulent les commandes ; aucune connexion SSH ou Samba réelle n'a été testée.
+Après autorisation sur la cible, appliquer avec `sudo bash` et sans `--dry-run`.
+Une confirmation précède la sauvegarde privée sous `/var/tmp/cachyos-firewall.*`.
+Un changement détecté pendant l'attente bloque l'application. Les échecs et
+interruptions interceptables déclenchent une tentative de retour arrière ciblé.
+Le script affiche aussi `sudo bash CHEMIN/restaurer.sh`, à examiner et utiliser
+avant toute autre modification volontaire. Il rétablit l'ancienne zone et retire
+uniquement les autorisations que cette session devait ajouter. Une copie de
+`/etc/firewalld` et les inventaires restent disponibles, sans restauration globale
+automatique qui écraserait d'autres règles. Une coupure ou SIGKILL n'est pas intercepté.
+Voir le [guide pare-feu](docs/firewalld.md) pour les limites et la migration UFW.
 
 ## Téléchargements parallèles de Pacman
 
@@ -199,11 +208,14 @@ Le script affiche le chemin précis pour revenir en arrière :
 sudo bash "03 - pacman_settings.sh" --restore /chemin/de/la/sauvegarde
 ```
 
-`--restore` seul choisit la sauvegarde la plus récente. Toute restauration est
+`--restore` seul choisit la dernière sauvegarde créée par le script, enregistrée
+dans un index `.latest` remplacé atomiquement sous le verrou. Pour les anciennes
+sauvegardes sans index, la date est utilisée ; des dates indiscernables imposent
+un chemin explicite. Toute restauration est
 validée et précédée d'une sauvegarde de la configuration courante, même si celle-ci
 est invalide. La restauration remplace tout `pacman.conf`, sans restaurer les
 fichiers inclus. Les droits, le propriétaire et le groupe sont conservés ; la date
-des sauvegardes reflète leur création pour permettre leur sélection chronologique.
+des sauvegardes reflète leur création, et l'index évite les ambiguïtés à la seconde.
 
 Le remplacement utilise un fichier temporaire dans le même répertoire. Les échecs
 après remplacement et les interruptions interceptables déclenchent le retour à
@@ -222,5 +234,17 @@ fichiers temporaires. Ils couvrent les erreurs, les sauvegardes, la restauration
 les interruptions ; ils ne prouvent pas le fonctionnement du vrai Pacman sous
 CachyOS. Aucun changement système réel n'a été effectué pendant leur développement.
 
-Les résultats historiques des tests ne garantissent pas que toute la suite reste
-à jour après les ajouts et renommages. Voir les [écarts actuellement identifiés](docs/README.md#validation-et-écarts-connus).
+## Diagnostic et validation du dépôt
+
+```bash
+# Lecture seule, sans sudo, installation ni téléchargement :
+python3 -B scripts/diagnostic.py
+# Syntaxes et cohérence documentaire seulement :
+python3 -B scripts/verifier_depot.py --statique
+# Avec tests dans des dossiers temporaires isolés :
+python3 -B scripts/verifier_depot.py
+```
+
+Le diagnostic signale les outils absents, l'état des unités et les configurations
+à examiner. Il ne résout aucun conflit automatiquement. Les contrôles automatiques
+et leurs limites sont décrits dans le [guide de validation](docs/validation.md).

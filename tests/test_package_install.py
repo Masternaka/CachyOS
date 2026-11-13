@@ -148,10 +148,52 @@ class PackageInstallTests(unittest.TestCase):
         self.assertEqual(self.calls(), [])
 
     def test_exact_list_includes_tealdeer(self):
-        self.assertEqual(len(self.packages), 45)
-        self.assertEqual(len(set(self.packages)), 45)
+        expected = """catfish flameshot gnome-disk-utility gparted qbittorrent transmission-qt
+        lshw fwupd timeshift 7zip stow ttf-jetbrains-mono-nerd ttf-meslo-nerd
+        ttf-firacode-nerd firefox-i18n-fr thunderbird-i18n-fr bitwarden proton-pass
+        firewalld firewall-config firefox thunderbird brave-origin-bin strawberry mpv
+        vesktop-bin libreoffice-fresh libreoffice-fresh-fr obsidian qemu-full swtpm
+        virt-manager distrobox podman kitty foot ghostty btop fastfetch tealdeer git
+        curl wget yazi starship micro code github-desktop meld zed openai-codex
+        claude-desktop claude-code opencode opencode-desktop merkuro dolphin-plugins
+        isoimagewriter yakuake krusader systemdgenie print-manager""".split()
+        self.assertEqual(self.packages, expected)
+        self.assertEqual(len(set(self.packages)), len(self.packages))
         self.assertIn('tealdeer', self.packages)
         self.assertNotIn('tldr', self.packages)
+
+    def test_groups_are_explicit_and_default_list_is_their_union(self):
+        groups = self.run_script('--list-groups', original=True).stdout.splitlines()
+        expected_groups = ['utilitaires', 'polices', 'langues', 'securite', 'internet',
+                           'multimedia', 'communication', 'bureautique', 'virtualisation',
+                           'terminaux', 'terminal', 'developpement', 'ia', 'kde']
+        self.assertEqual(groups, expected_groups)
+        combined = []
+        for group in groups:
+            result = self.run_script('--groups', group, '--list', original=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            combined.extend(result.stdout.splitlines())
+        self.assertEqual(combined, self.packages)
+        result = self.run_script('--groups', 'virtualisation,terminal', '--list', original=True)
+        self.assertEqual(result.stdout.splitlines(), ['qemu-full', 'swtpm', 'virt-manager',
+                         'distrobox', 'podman', 'btop', 'fastfetch', 'tealdeer', 'git',
+                         'curl', 'wget', 'yazi', 'starship'])
+        self.assertEqual(self.calls(), [])
+
+    def test_group_selection_limits_transaction_targets(self):
+        result = self.run_script('--groups', 'virtualisation', terminal=True)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        transactions = [c for c in self.calls() if c[:2] == ['pacman', '-Syu']]
+        self.assertEqual(transactions[0][3:], ['cachyos-extra-v3/' + p for p in
+                         ['qemu-full', 'swtpm', 'virt-manager', 'distrobox', 'podman']])
+
+    def test_invalid_groups_fail_without_system_calls(self):
+        for args in [('--groups',), ('--groups', ''), ('--groups', 'kde,'),
+                     ('--groups', 'terminal,terminal'), ('--groups', 'unknown'),
+                     ('--groups', 'terminal', '--groups', 'kde')]:
+            result = self.run_script(*args)
+            self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(self.calls(), [])
 
     def test_unknown_option_is_rejected(self):
         self.assertEqual(self.run_script('--yes').returncode, 2)
@@ -189,10 +231,10 @@ class PackageInstallTests(unittest.TestCase):
         self.assert_no_mutation()
 
     def test_missing_package_is_blocking_even_if_other_packages_exist(self):
-        self.config['missing'] = 'brave-bin'
+        self.config['missing'] = 'brave-origin-bin'
         result = self.run_script('--dry-run')
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('brave-bin', result.stderr)
+        self.assertIn('brave-origin-bin', result.stderr)
         self.assert_no_mutation()
 
     def test_unreadable_repository_configuration_or_database(self):
@@ -248,7 +290,7 @@ class PackageInstallTests(unittest.TestCase):
         self.assertEqual(len(transactions), 1)
         self.assertEqual(transactions[0][2], '--needed')
         self.assertEqual(transactions[0][3:], ['cachyos-extra-v3/' + p for p in self.packages])
-        self.assertIn('44 nouvellement installés', result.stdout)
+        self.assertIn('61 nouvellement installés', result.stdout)
         snapshot, = self.root.glob('snapshot-*')
         self.assertEqual(snapshot.stat().st_mode & 0o777, 0o700)
         self.assertTrue((snapshot / 'paquets-apres.txt').exists())

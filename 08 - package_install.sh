@@ -9,85 +9,124 @@ LIST_ONLY=false
 SNAPSHOT=''
 TRANSACTION_STARTED=false
 
-PACKAGES=(
+# Intégration Wayland et gestionnaire de paquets : exemples conservés.
 
       # Intégration Wayland (notamment Niri)
       #qt5-wayland
-      qt6-wayland
+      #qt6-wayland
 
-      # Utilitaires
+# Utilitaires
+GROUP_UTILITAIRES=(
       catfish
       flameshot
       gnome-disk-utility
       gparted
-      openrgb
+      #openrgb
       qbittorrent
       transmission-qt
       lshw
       fwupd
-      #timeshift
+      timeshift
       7zip
-      #stow
+      stow
 
-      # Polices
+)
+
+# Polices
+GROUP_POLICES=(
       ttf-jetbrains-mono-nerd
       ttf-meslo-nerd
       ttf-firacode-nerd
 
-      # Paquets de langue
+)
+
+# Paquets de langue
+GROUP_LANGUES=(
       firefox-i18n-fr
       thunderbird-i18n-fr
 
-      # Sécurité
+)
+
+# Sécurité
+GROUP_SECURITE=(
       #keepassxc
       bitwarden
+      proton-pass
+      #proton-vpn-gtk-app
+      firewalld
+      firewall-config
 
-      # Navigateur internet et email
+)
+
+# Navigateur internet et email
+GROUP_INTERNET=(
       firefox
       thunderbird
       #vivaldi
       #vivaldi-ffmpeg-codecs
-      brave-bin
-      #brave-origin-bin
+      #brave-bin
+      brave-origin-bin
       #helium-browser-bin
       #zen-browser-bin
 
-      # Multimédia
+)
+
+# Multimédia
+GROUP_MULTIMEDIA=(
       strawberry
       #vlc
       mpv
 
-      # Communication
+)
+
+# Communication
+GROUP_COMMUNICATION=(
       #discord
       vesktop-bin
 
-      # Office et notes
+)
+
+# Office et notes
+GROUP_BUREAUTIQUE=(
       libreoffice-fresh
       libreoffice-fresh-fr
       obsidian
 
-      # Virtualisation
+)
+
+# Virtualisation
+GROUP_VIRTUALISATION=(
       qemu-full
       swtpm
       virt-manager
       distrobox
       podman
 
-      # Terminal
+)
+
+# Terminal
+GROUP_TERMINAUX=(
       kitty
       foot
       ghostty
 
-      # Utilitaires terminal
-      #btop
+)
+
+# Utilitaires terminal
+GROUP_TERMINAL=(
+      btop
       fastfetch
-      tealdeer # Même client que dans 04 - install_zsh.sh
+      tealdeer
       git
       curl
       wget
-      #yazi
+      yazi
+      starship
 
-      # Développement
+)
+
+# Développement
+GROUP_DEVELOPPEMENT=(
       micro
       code
       github-desktop
@@ -101,23 +140,63 @@ PACKAGES=(
       # Package manager
       #yay
 
-      # AI
+)
+
+# AI
+GROUP_IA=(
       openai-codex
       claude-desktop
       claude-code
       opencode
       opencode-desktop
 
-  )
+)
+
+# KDE Plasma
+GROUP_KDE=(
+      merkuro
+      dolphin-plugins
+      isoimagewriter
+      yakuake
+      krusader
+      systemdgenie
+      print-manager
+
+)
+
+PACKAGE_GROUPS=(utilitaires polices langues securite internet multimedia communication bureautique virtualisation terminaux terminal developpement ia kde)
+PACKAGES=()
+append_group() {
+  case "$1" in
+    utilitaires) PACKAGES+=("${GROUP_UTILITAIRES[@]}") ;;
+    polices) PACKAGES+=("${GROUP_POLICES[@]}") ;;
+    langues) PACKAGES+=("${GROUP_LANGUES[@]}") ;;
+    securite) PACKAGES+=("${GROUP_SECURITE[@]}") ;;
+    internet) PACKAGES+=("${GROUP_INTERNET[@]}") ;;
+    multimedia) PACKAGES+=("${GROUP_MULTIMEDIA[@]}") ;;
+    communication) PACKAGES+=("${GROUP_COMMUNICATION[@]}") ;;
+    bureautique) PACKAGES+=("${GROUP_BUREAUTIQUE[@]}") ;;
+    virtualisation) PACKAGES+=("${GROUP_VIRTUALISATION[@]}") ;;
+    terminaux) PACKAGES+=("${GROUP_TERMINAUX[@]}") ;;
+    terminal) PACKAGES+=("${GROUP_TERMINAL[@]}") ;;
+    developpement) PACKAGES+=("${GROUP_DEVELOPPEMENT[@]}") ;;
+    ia) PACKAGES+=("${GROUP_IA[@]}") ;;
+    kde) PACKAGES+=("${GROUP_KDE[@]}") ;;
+    *) fatal "Groupe inconnu : $1. Utiliser --list-groups." 2 ;;
+  esac
+}
+
 
 info() { printf '%s\n' "$*"; }
 fatal() { printf 'Erreur : %s\n' "$1" >&2; exit "${2:-1}"; }
 
 show_help() {
   cat <<'EOF'
-Usage : bash "08 - package_install.sh" [--help | --list | --dry-run]
+Usage : bash "08 - package_install.sh" [--list | --dry-run] [--groups LISTE]
 
   --help, -h   Afficher cette aide, sans privilèges ni contrôle système.
+  --list-groups Afficher les groupes disponibles, sans contrôle système.
+  --groups LISTE Sélectionner des groupes séparés par des virgules (défaut : tous).
   --list       Afficher la liste exacte des paquets sélectionnés.
   --dry-run    Vérifier les dépôts et afficher les cibles, sans écriture,
                téléchargement, sudo, mise à jour ni nettoyage.
@@ -142,13 +221,30 @@ pas de suppression de paquets ni de nettoyage du cache.
 EOF
 }
 
-for arg in "$@"; do
-  case "$arg" in
+SELECTED_PACKAGE_GROUPS=''
+while (( $# > 0 )); do
+  case "$1" in
     --help|-h) show_help; exit 0 ;;
-    --list) LIST_ONLY=true ;;
-    --dry-run) DRY_RUN=true ;;
-    *) fatal "Option inconnue : $arg. Utiliser --help." 2 ;;
+    --list) LIST_ONLY=true; shift ;;
+    --list-groups) printf '%s\n' "${PACKAGE_GROUPS[@]}"; exit 0 ;;
+    --dry-run) DRY_RUN=true; shift ;;
+    --groups)
+      [[ -z "$SELECTED_PACKAGE_GROUPS" && $# -ge 2 && -n "$2" && "$2" != -* ]] || fatal 'Valeur --groups manquante ou répétée.' 2
+      SELECTED_PACKAGE_GROUPS="$2"; shift 2 ;;
+    *) fatal "Option inconnue : $1. Utiliser --help." 2 ;;
   esac
+done
+if [[ -n "$SELECTED_PACKAGE_GROUPS" ]]; then
+  [[ "$SELECTED_PACKAGE_GROUPS" != ,* && "$SELECTED_PACKAGE_GROUPS" != *, && "$SELECTED_PACKAGE_GROUPS" != *,,* ]] || fatal 'Liste de groupes mal formée.' 2
+  IFS=, read -r -a REQUESTED_PACKAGE_GROUPS <<< "$SELECTED_PACKAGE_GROUPS"
+else
+  REQUESTED_PACKAGE_GROUPS=("${PACKAGE_GROUPS[@]}")
+fi
+SEEN_PACKAGE_GROUPS=' '
+for group in "${REQUESTED_PACKAGE_GROUPS[@]}"; do
+  [[ "$SEEN_PACKAGE_GROUPS" != *" $group "* ]] || fatal "Groupe dupliqué : $group" 2
+  append_group "$group"
+  SEEN_PACKAGE_GROUPS+="$group "
 done
 if $LIST_ONLY; then printf '%s\n' "${PACKAGES[@]}"; exit 0; fi
 

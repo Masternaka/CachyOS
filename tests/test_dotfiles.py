@@ -54,7 +54,9 @@ class DotfilesTests(unittest.TestCase):
             target.symlink_to(source)
 
     def test_packages_do_not_conflict_or_contain_runtime_data(self):
-        self.assertEqual(len(PACKAGES), 15)
+        self.assertEqual(set(PACKAGES), {
+            'zsh', 'starship', 'yazi', 'btop', 'tealdeer', 'bat', 'fzf', 'zoxide',
+            'eza', 'ripgrep', 'fd', 'delta', 'lazygit', 'kitty', 'foot', 'ghostty', 'fastfetch'})
         targets = set()
         for package, file, relative in package_files():
             with self.subTest(package=package, file=str(relative)):
