@@ -30,6 +30,7 @@ Usage : bash "03 - pacman_settings.sh" [OPTIONS]
 
 Les modes --restore, --auto et --value sont exclusifs.
 Sans mode explicite, une saisie interactive est nécessaire.
+Lancer avec sudo bash pour appliquer un réglage ou restaurer une sauvegarde.
 0 désactive la directive locale ; la valeur effective attendue est 1.
 
 Exemples :
@@ -108,6 +109,13 @@ while (( $# > 0 )); do
     esac
 done
 
+if ! $SILENT_MODE; then printf '%bCachyOS · Réglages de Pacman%b\n' "$BOLD" "$RESET" >&2; fi
+if $DRY_RUN; then
+    dry 'Aucun sudo nécessaire et aucune modification appliquée.'
+else
+    detail 'Privilèges' 'Lancer avec sudo bash pour modifier ou restaurer pacman.conf.'
+fi
+
 # Mode interactif uniquement sur un terminal ; aucune activation automatique
 # implicite depuis une tâche planifiée, un pipe ou une entrée redirigée.
 if [[ -z "$MODE" ]]; then
@@ -130,8 +138,6 @@ normalize_value() {
 if [[ "$MODE" == value ]]; then normalize_value; fi
 
 # Vérifier les permissions et les dépendances avant de modifier quoi que ce soit.
-if ! $SILENT_MODE; then printf '%bCachyOS · Réglages de Pacman%b\n' "$BOLD" "$RESET" >&2; fi
-if $DRY_RUN; then dry 'Aucune modification ne sera appliquée.'; fi
 case "$MODE" in
     value) detail 'Mode' "Valeur manuelle ($VALUE)" ;;
     auto) detail 'Mode' 'Estimation CPU/RAM' ;;

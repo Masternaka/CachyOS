@@ -61,6 +61,7 @@ les règles sont ajoutées aux configurations active et permanente,
 sans rechargement global. La valeur none conserve les règles existantes.
 Une confirmation précède chaque plan de modifications. L’installation
 d’une interface graphique ne démarre aucun pare-feu via ce script.
+Lancer avec sudo bash pour appliquer les changements retenus.
 HELP
 }
 ZONE_SET=false
@@ -358,7 +359,11 @@ trap 'print_report "$?"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 printf '%bCachyOS · Pare-feu%b\n' "$BOLD" "$RESET"
-if $DRY_RUN; then dry 'Aucune modification ne sera appliquée.'; fi
+if $DRY_RUN; then
+  dry 'Aucun sudo nécessaire et aucune modification appliquée.'
+else
+  warn 'Lancer avec sudo bash pour modifier le pare-feu ou installer une interface graphique.'
+fi
 command -v systemctl >/dev/null || fatal 'Commande absente : systemctl.'
 if $INTERACTIVE; then
   run_interactive

@@ -38,8 +38,9 @@ HELP
     exit 0
 fi
 
-[[ $# -eq 1 ]] || fail 'Indiquez l’empreinte complète ou utilisez --help.'
 printf '%bCachyOS · Dépôt master-archrepo%b\n' "$BOLD" "$RESET"
+status_line "$BOLD" 'Privilèges' 'Lancer avec sudo bash pour modifier la configuration et le trousseau Pacman.'
+[[ $# -eq 1 ]] || fail 'Indiquez l’empreinte complète ou utilisez --help.'
 step 1 'Vérifier les prérequis et l’empreinte attendue'
 fingerprint="${1^^}"
 [[ "$fingerprint" =~ ^([A-F0-9]{40}|[A-F0-9]{64})$ ]] \

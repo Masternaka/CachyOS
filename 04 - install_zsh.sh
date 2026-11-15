@@ -101,6 +101,7 @@ Usage : bash "04 - install_zsh.sh" [options]
 
 Installe les outils choisis puis prépare leur intégration depuis Dotfiles.
 Utilisateur normal uniquement. Kitty et Foot utilisent JetBrainsMono Nerd Font.
+Le script utilise sudo seulement si Pacman doit installer des paquets natifs.
 Le module Yazi prépare aussi Micro comme éditeur de texte par défaut.
 Depuis Fish, lancer avec bash comme dans les exemples. Fish peut rester
 le shell de connexion.
@@ -170,7 +171,13 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 printf '%bCachyOS · Outils et configuration du terminal%b\n' "$BOLD" "$RESET" >&2
-if $DRY_RUN; then dry 'Aucune modification ne sera appliquée.'; fi
+if $DRY_RUN; then
+    dry 'Aucun sudo nécessaire et aucune modification appliquée.'
+elif [[ -n "$RESTORE" ]]; then
+    status_line "$BOLD" 'Privilèges' 'Restauration depuis le compte utilisateur, sans sudo.'
+else
+    status_line "$BOLD" 'Privilèges' 'Lancer sans sudo. Pacman utilisera sudo seulement pour installer des paquets natifs manquants.'
+fi
 step 1 'Vérifier les prérequis'
 [[ $EUID -ne 0 ]] || fatal 'Ne lancez pas ce script avec sudo/root : il configure votre compte personnel.'
 command -v python3 >/dev/null 2>&1 || fatal 'Python 3 est requis pour préparer les sauvegardes ; aucun outil installé automatiquement.'

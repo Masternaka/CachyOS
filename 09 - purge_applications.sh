@@ -50,6 +50,7 @@ Usage : bash "09 - purge_applications.sh" [--dry-run | --apply] [cibles]
   --help, -h         Affiche cette aide.
 
 Sans cible en argument, sélectionner les paquets dans les deux listes.
+Lancer sans sudo. Avec --apply, le script utilise sudo pour les paquets natifs.
 Une purge native archive d’abord les fichiers /etc déclarés par les paquets.
 Les configurations personnelles sont mises de côté après la désinstallation.
 Pour Flatpak, seule la configuration config/ de l’application est ciblée.
@@ -90,6 +91,11 @@ if $APPLY && $EXPLICIT_DRY_RUN; then fatal 'Choisir --apply ou --dry-run.'; fi
 if (( ${#NATIVE[@]} + ${#FLATPAKS[@]} + ${#CONFIGS[@]} == 0 )); then CATALOGUE_MODE=true; fi
 if $LIST && { $APPLY || ! $CATALOGUE_MODE; }; then
     fatal 'Utiliser --list sans cible ni --apply.'
+fi
+if $APPLY; then
+    status_line "$CYAN" 'Privilèges' 'Lancer sans sudo. Le script utilise sudo seulement pour retirer des paquets natifs.'
+elif ! $LIST; then
+    status_line "$CYAN" 'Simulation' 'Aucun sudo nécessaire.'
 fi
 [[ "$(uname -s)" == Linux ]] || fatal 'Lancer sur la machine CachyOS.'
 [[ $EUID -ne 0 ]] || fatal 'Lancer avec le compte concerné, sans sudo.'

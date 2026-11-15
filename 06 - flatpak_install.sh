@@ -81,6 +81,7 @@ show_help() {
     cat <<'EOF'
 Usage : bash "06 - flatpak_install.sh" [options]
 Lancer sans sudo, avec le compte qui utilisera les applications.
+Le script utilise sudo seulement si des prérequis natifs doivent être installés.
 
   --help, -h  Afficher l'aide sans Flatpak ni privilèges.
   --list      Afficher les identifiants et descriptions sans Flatpak.
@@ -170,7 +171,12 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 STEPS=4
 printf '%bCachyOS · Applications Flatpak personnelles%b\n' "$BOLD" "$RESET"
-if $DRY_RUN; then STEPS=3; info 'Mode : simulation'; fi
+if $DRY_RUN; then
+    STEPS=3
+    status_line "$CYAN" 'Simulation' 'Aucun sudo nécessaire.'
+else
+    status_line "$BOLD" 'Privilèges' 'Lancer sans sudo. Le script utilise sudo seulement pour installer les prérequis natifs manquants.'
+fi
 [[ $(uname -s) == Linux ]] || fatal 'Ce script nécessite Linux.'
 [[ $EUID -ne 0 ]] || fatal 'Lancer sans sudo, depuis la session de l’utilisateur concerné.'
 if ! $DRY_RUN; then

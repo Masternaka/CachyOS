@@ -14,12 +14,12 @@ d'exécution. Examiner leurs prérequis et leurs simulations avant de les appliq
 | [01 · Services systemd](docs/systemd-services.md) | Bluetooth, serveur SSH, TRIM et nettoyage périodique du cache Pacman | Avec `sudo`, sans confirmation intégrée |
 | [02 · Pare-feu](docs/firewalld.md) | Détection UFW/firewalld, désactivation au choix, interface graphique ou règles firewalld | Avec `sudo` et confirmation |
 | [03 · Réglages Pacman](docs/pacman-settings.md) | Téléchargements parallèles | Avec `sudo`, saisie interactive ou options explicites |
-| [04 · Zsh et outils du terminal](docs/zsh.md) | Outils, configurations, GNU Stow et changement de shell facultatif | Sans `sudo`, confirmations par étape |
+| [04 · Zsh et outils du terminal](docs/zsh.md) | Outils, configurations, GNU Stow et changement de shell facultatif | Compte normal, `sudo` si des paquets natifs manquent |
 | [05 · Paquets natifs](docs/package-install.md) | 62 paquets des dépôts officiels utilisés par CachyOS | Sans `sudo` conseillé, élévation pour Pacman après confirmation |
-| [06 · Applications Flatpak](docs/flatpak-install.md) | Prérequis natifs et sélection parmi 13 applications Flathub personnelles | Compte normal, accord global avant l’installation |
+| [06 · Applications Flatpak](docs/flatpak-install.md) | Prérequis natifs et sélection parmi 13 applications Flathub personnelles | Compte normal, `sudo` si des prérequis natifs manquent |
 | [07 · QEMU et Virt-Manager](docs/qemu.md) | KVM, libvirt, UEFI, TPM, stockage et réseau virtuel | Compte normal, confirmations avant les actions `sudo` |
 | [08 · master-archrepo](docs/master-archrepo.md) | Dépôt Pacman tiers pour SambaPilot et DotfilePilot | Avec `sudo` et une empreinte vérifiée, sans simulation ni confirmation intégrée |
-| [09 · Purge d’applications](docs/purge-applications.md) | Inventaire Pacman et Flatpak, sélection interactive et configurations ciblées | Simulation par défaut, application avec confirmation |
+| [09 · Purge d’applications](docs/purge-applications.md) | Inventaire Pacman et Flatpak, sélection interactive et configurations ciblées | Simulation par défaut, `sudo` pour retirer les paquets natifs |
 
 Les [guides détaillés](docs/README.md) et le [catalogue Dotfiles](Dotfiles/README.md)
 décrivent les fichiers, les sauvegardes et les limites de validation.

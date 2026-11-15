@@ -42,6 +42,7 @@ Usage : bash "07 - install_qemu.sh" [--dry-run] [--no-network]
 
 Prépare QEMU/KVM, libvirt, Virt-Manager, le micrologiciel UEFI et le TPM virtuel.
 Lancer depuis le compte utilisateur normal sur CachyOS x86_64.
+Le script utilise sudo pour les actions sur les paquets et la configuration libvirt.
   --dry-run     Examiner les paquets et le plan, sans sudo ni écriture.
   --no-network  Passer la préparation du réseau NAT libvirt default.
 
@@ -64,7 +65,12 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 STEPS=5
 printf '%bCachyOS · QEMU/KVM et Virt-Manager%b\n' "$CYAN" "$RESET"
-if $DRY_RUN; then STEPS=3; info 'Mode : simulation'; fi
+if $DRY_RUN; then
+    STEPS=3
+    status_line "$CYAN" 'Simulation' 'Aucun sudo nécessaire.'
+else
+    status_line "$CYAN" 'Privilèges' 'Lancer sans sudo. Le script utilise sudo après confirmation pour les paquets et la configuration de libvirt.'
+fi
 step 1 'Vérifier la machine et les prérequis'
 [[ "$(uname -sm)" == 'Linux x86_64' ]] || fatal 'Linux x86_64 requis.'
 [[ $EUID -ne 0 ]] || fatal 'Lancer sans sudo depuis le compte utilisateur concerné.'

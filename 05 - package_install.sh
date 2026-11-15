@@ -282,7 +282,12 @@ trap 'exit 143' TERM
 
 STEPS=4
 printf '%bCachyOS · Paquets natifs%b\n' "$BOLD" "$RESET"
-if $DRY_RUN; then STEPS=3; info 'Mode : simulation'; fi
+if $DRY_RUN; then
+  STEPS=3
+  status_line "$CYAN" 'Simulation' 'Aucun sudo nécessaire.'
+else
+  status_line "$BOLD" 'Privilèges' 'Lancer depuis le compte utilisateur. Le script utilise sudo pour la transaction Pacman après confirmation.'
+fi
 step 1 'Vérifier les prérequis'
 [[ $(uname -s) == Linux ]] || fatal 'Ce script nécessite CachyOS Linux.'
 [[ -r /etc/os-release ]] || fatal '/etc/os-release est introuvable.'

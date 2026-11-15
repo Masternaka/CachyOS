@@ -38,6 +38,7 @@ show_state() {
 usage() {
   printf 'Usage : bash "%s" [--dry-run | --help]\n' "${0##*/}"
   printf '%s\n' 'Active et démarre Bluetooth, le serveur SSH, fstrim.timer et paccache.timer.' \
+    'Lancer avec sudo bash pour appliquer les changements.' \
     '  --dry-run  Inspecte et décrit les actions sans modification.' \
     '  --help     Affiche cette aide.'
 }
@@ -57,8 +58,9 @@ esac
 # ─── Vérification root et environnement ──────────────────────────────────────
 printf '%bCachyOS · Services systemd%b\n' "$BOLD" "$RESET"
 if $DRY_RUN; then
-  dry 'Mode dry-run : aucune modification ne sera appliquée.'
+  dry 'Aucun sudo nécessaire et aucune modification appliquée.'
 else
+  detail 'Privilèges' 'Lancer avec sudo bash pour modifier les services systemd.'
   detail 'Mode' 'Application des changements'
 fi
 step 1 'Vérifier les prérequis'
