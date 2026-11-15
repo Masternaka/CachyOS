@@ -5,13 +5,14 @@ export LC_ALL=C
 DRY_RUN=false
 SHOW_LIST=false
 CLEANUP=false
+SELECTION=''
 SNAPSHOT=''
 HOST_CHANGED=false
 FLATHUB_DESCRIPTOR=https://flathub.org/repo/flathub.flatpakrepo
 
 # ─── Liste des applications Flatpak à installer ───────────────────────────────
 # Format : "app.id.flatpak:Description"
-applications=(
+catalogue=(
 
     # Appstore pour Flatpak
     "io.github.kolunmi.Bazaar:Bazaar — magasin Flatpak"
@@ -52,23 +53,27 @@ applications=(
 )
 
 # Présentation du plan et du bilan dans le terminal.
-CYAN='' BOLD='' GREEN='' YELLOW='' RED='' RESET='' ERROR_RESET=''
+CYAN='' BOLD='' GREEN='' YELLOW='' BLUE='' VIOLET='' SUMMARY_RED='' RED='' RESET='' ERROR_RESET=''
 if [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
   if [[ -t 1 ]]; then
-    CYAN='\033[1;36m' BOLD='\033[1m' GREEN='\033[32m' YELLOW='\033[33m' RESET='\033[0m'
+    CYAN='\033[1;36m' BOLD='\033[1m' GREEN='\033[1;32m' YELLOW='\033[1;33m'
+    BLUE='\033[1;94m' VIOLET='\033[1;95m' SUMMARY_RED='\033[1;31m' RESET='\033[0m'
   fi
   if [[ -t 2 ]]; then RED='\033[1;31m' ERROR_RESET='\033[0m'; fi
 fi
 info() { printf '  %s\n' "$*"; }
-ok() { printf '  %bOK%b  %s\n' "$GREEN" "$RESET" "$*"; }
-warn() { printf '  %bAttention%b  %s\n' "$YELLOW" "$RESET" "$*"; }
-error() { printf '  %bErreur%b  %s\n' "$RED" "$ERROR_RESET" "$*" >&2; }
+status_line() { printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3"; }
+ok() { status_line "$GREEN" 'OK' "$*"; }
+warn() { status_line "$YELLOW" 'Attention' "$*"; }
+error() { printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$*" >&2; }
 fatal() { error "$1"; exit "${2:-1}"; }
 step() { printf '\n%b── %s/%s  %s%b\n' "$CYAN" "$1" "$STEPS" "$2" "$RESET"; }
 flatpak_user() { flatpak "$@" --user; }
+# Les glyphes de progression de Flatpak nécessitent une locale UTF-8.
+flatpak_progress() { LC_ALL=C.UTF-8 flatpak_user "$@"; }
 show_applications_list() {
     local entry
-    for entry in "${applications[@]}"; do
+    for entry in "$@"; do
         printf '  %-45s %s\n' "${entry%%:*}" "${entry#*:}"
     done
 }
@@ -79,31 +84,76 @@ Lancer sans sudo, avec le compte qui utilisera les applications.
 
   --help, -h  Afficher l'aide sans Flatpak ni privilèges.
   --list      Afficher les identifiants et descriptions sans Flatpak.
+  --all       Choisir toutes les applications du catalogue.
+  --only LISTE Choisir des numéros ou identifiants exacts séparés par des virgules.
   --dry-run   Examiner seulement l'état local : aucun ajout de dépôt,
               téléchargement, inventaire écrit ou nettoyage.
   --cleanup   Proposer séparément le nettoyage des runtimes personnels
               inutilisés après une installation sans erreur.
 
-Les prérequis natifs manquants sont proposés via Pacman avec mise à jour
-complète et confirmation distincte. Les runtimes suivent les applications.
-Après l'accord Flatpak : inventaire privé sous /var/tmp, ajout éventuel
-de Flathub personnel, vérification en ligne des 13 références stables, puis
-installation ou mise à jour des seules applications sélectionnées.
-Les dialogues natifs de Flatpak restent actifs. Aucun retry automatique.
+Dans un terminal, choisir les applications ou tout le catalogue au début.
+Un seul accord couvre l'installation des prérequis natifs manquants et la
+mise à jour complète éventuelle, puis Flathub, les applications sélectionnées
+et leurs runtimes. Pacman et Flatpak utilisent ensuite leurs réponses par défaut.
+Le nettoyage facultatif reste soumis à un accord séparé.
 Les installations système et les autres applications ne sont pas mises à jour.
 L'inventaire ne sauvegarde pas les données personnelles ni les anciens runtimes.
 EOF
 }
-for arg in "$@"; do
-    case "$arg" in
+while (( $# > 0 )); do
+    case "$1" in
         --help|-h) show_help; exit 0 ;;
         --list) SHOW_LIST=true ;;
+        --all)
+            [[ -z "$SELECTION" ]] || fatal 'Choisir --all ou --only, une seule fois.' 2
+            SELECTION=tout ;;
+        --only)
+            [[ -z "$SELECTION" && $# -ge 2 && -n "$2" && "$2" != -* ]] ||
+                fatal 'Indiquer une liste après --only, sans répéter --only ou --all.' 2
+            SELECTION="$2"
+            shift ;;
         --dry-run) DRY_RUN=true ;;
         --cleanup) CLEANUP=true ;;
-        *) fatal "Option inconnue : $arg. Utiliser --help." 2 ;;
+        *) fatal "Option inconnue : $1. Utiliser --help." 2 ;;
     esac
+    shift
 done
-if $SHOW_LIST; then show_applications_list; exit 0; fi
+if $SHOW_LIST; then show_applications_list "${catalogue[@]}"; exit 0; fi
+
+select_applications() {
+    local choice="$1" item index count="${#catalogue[@]}" seen=' '
+    local items=()
+    if [[ "$choice" == tout ]]; then applications=("${catalogue[@]}"); return; fi
+    choice=${choice//[[:space:]]/}
+    [[ -n "$choice" && "$choice" != ,* && "$choice" != *, && "$choice" != *,,* ]] ||
+        fatal 'Liste de sélection invalide. Exemples : 2,3 ou tout.' 2
+    IFS=, read -r -a items <<< "$choice"
+    applications=()
+    for item in "${items[@]}"; do
+        if [[ "$item" =~ ^[0-9]+$ ]]; then
+            [[ ${#item} -le ${#count} ]] || fatal "Numéro hors catalogue : $item." 2
+            index=$((10#$item - 1))
+        else
+            for index in "${!catalogue[@]}"; do
+                [[ "${catalogue[index]%%:*}" != "$item" ]] || break
+            done
+            [[ "${catalogue[index]%%:*}" == "$item" ]] || fatal "Application hors catalogue : $item." 2
+        fi
+        (( index >= 0 && index < count )) || fatal "Numéro hors catalogue : $item." 2
+        if [[ "$seen" != *" $index "* ]]; then
+            applications+=("${catalogue[index]}")
+            seen+="$index "
+        fi
+    done
+}
+
+selected() {
+    local entry
+    for entry in "${applications[@]}"; do
+        if [[ "${entry%%:*}" == "$1" ]]; then return 0; fi
+    done
+    return 1
+}
 
 on_exit() {
     local status=$1
@@ -121,19 +171,41 @@ trap 'exit 143' TERM
 STEPS=4
 printf '%bCachyOS · Applications Flatpak personnelles%b\n' "$BOLD" "$RESET"
 if $DRY_RUN; then STEPS=3; info 'Mode : simulation'; fi
-step 1 'Examiner les prérequis sur l’hôte'
 [[ $(uname -s) == Linux ]] || fatal 'Ce script nécessite Linux.'
 [[ $EUID -ne 0 ]] || fatal 'Lancer sans sudo, depuis la session de l’utilisateur concerné.'
+if ! $DRY_RUN; then
+    [[ -t 0 && -t 1 ]] || fatal 'Exécution réelle refusée sans terminal interactif. Utiliser --dry-run.'
+fi
+step 1 'Choisir les applications'
+if [[ -z "$SELECTION" ]]; then
+    if [[ -t 0 && -t 1 ]]; then
+        for index in "${!catalogue[@]}"; do
+            entry="${catalogue[index]}"
+            printf '  %b%2s%b  %s\n' "$CYAN" "$((index + 1))" "$RESET" "${entry#*:}"
+        done
+        printf 'Numéros séparés par des virgules [Entrée = tout, q = quitter] : '
+        IFS= read -r SELECTION || fatal 'Sélection interrompue.'
+        if [[ "$SELECTION" == q ]]; then info 'Installation annulée.'; exit 0; fi
+    fi
+    SELECTION="${SELECTION:-tout}"
+fi
+select_applications "$SELECTION"
+status_line "$BLUE" 'Sélection' "${#applications[@]} application(s) sur ${#catalogue[@]}."
+step 2 'Examiner les applications et leurs prérequis'
 for tool in pacman pacman-conf awk; do
     command -v "$tool" >/dev/null 2>&1 || fatal "Commande requise absente : $tool."
 done
 
 read_host_plan() {
     local installed listing pkg target
-    local required=(flatpak xdg-desktop-portal distrobox podman pipewire-audio)
+    local required=(flatpak xdg-desktop-portal)
     installed=$(pacman -Qq) || fatal 'Lecture des paquets natifs impossible.'
-    if [[ $'\n'"$installed"$'\n' != *$'\npipewire-media-session\n'* ]]; then
-        required+=(wireplumber)
+    if selected io.github.dvlv.boxbuddyrs; then required+=(distrobox podman); fi
+    if selected com.github.wwmm.easyeffects; then
+        required+=(pipewire-audio)
+        if [[ $'\n'"$installed"$'\n' != *$'\npipewire-media-session\n'* ]]; then
+            required+=(wireplumber)
+        fi
     fi
     case ":${XDG_CURRENT_DESKTOP:-}:" in
         *:[Nn][Ii][Rr][Ii]:*)
@@ -145,6 +217,7 @@ read_host_plan() {
     esac
     HOST_TARGETS=()
     HOST_MISSING=()
+    HOST_REPOS=''
     for pkg in "${required[@]}"; do
         if [[ $'\n'"$installed"$'\n' != *$'\n'"$pkg"$'\n'* ]]; then HOST_MISSING+=("$pkg"); fi
     done
@@ -165,7 +238,7 @@ read_host_plan() {
 read_host_plan
 if (( ${#HOST_TARGETS[@]} > 0 )); then
     warn 'Paquets hôte manquants. Leur installation entraîne une mise à jour système complète.'
-    printf '  sudo pacman -Syu --needed --'; printf ' %q' "${HOST_TARGETS[@]}"; printf '\n'
+    printf '  sudo pacman -Syu --needed --noconfirm --'; printf ' %q' "${HOST_TARGETS[@]}"; printf '\n'
     info "Dépôts actifs pour la mise à jour : ${HOST_REPOS//$'\n'/, }"
 else
     ok 'Prérequis natifs déjà présents.'
@@ -223,9 +296,9 @@ show_flatpak_plan() {
     for entry in "${applications[@]}"; do
         ref="app/${entry%%:*}/$ARCH/stable"
         if [[ -n "$(origin_for "$ref")" ]]; then
-            info "À vérifier pour mise à jour : $ref"
+            status_line "$BLUE" 'Déjà installée' "$ref · mise à jour à vérifier"
         else
-            info "À installer : $ref"
+            status_line "$CYAN" 'À installer' "$ref"
         fi
     done
 }
@@ -235,11 +308,24 @@ create_snapshot() {
     SNAPSHOT=$(mktemp -d /var/tmp/cachyos-flatpak.XXXXXXXX) || fatal 'Création du dossier d’inventaire impossible.'
 }
 
-step 2 'Examiner les applications et le dépôt personnel'
+recheck_flatpak_plan() {
+    read_flatpak_arch
+    read_local_state
+    check_origins
+    [[ "$PREVIEW_ARCH" == "$ARCH" && "$PREVIEW_REMOTES" == "$REMOTES" &&
+       "$PREVIEW_INSTALLED" == "$INSTALLED" ]] ||
+        fatal 'État Flatpak modifié depuis l’aperçu. Relancer pour le vérifier.'
+}
+
 info 'Applications sélectionnées (installation personnelle, branche stable) :'
-show_applications_list
+show_applications_list "${applications[@]}"
+FLATPAK_PREVIEW=false
 if command -v flatpak >/dev/null 2>&1; then
     show_flatpak_plan
+    FLATPAK_PREVIEW=true
+    PREVIEW_ARCH=$ARCH
+    PREVIEW_REMOTES=$REMOTES
+    PREVIEW_INSTALLED=$INSTALLED
 else
     info 'Le dépôt et les applications existantes pourront être lus après installation de Flatpak.'
 fi
@@ -247,52 +333,45 @@ info 'Flatpak installe automatiquement les runtimes et extensions nécessaires.'
 info 'Une application présente uniquement au niveau système aura une copie personnelle.'
 if $DRY_RUN; then
     step 3 'Bilan de la simulation'
-    ok 'Simulation locale terminée : aucun fichier écrit et aucune installation effectuée.'
+    status_line "$CYAN" 'Simulation' 'Simulation locale terminée : aucun fichier écrit et aucune installation effectuée.'
     info 'La disponibilité distante et les nouvelles versions seront contrôlées après accord, en exécution réelle.'
     if $CLEANUP; then info 'Nettoyage : serait proposé séparément, aucune suppression simulée comme réussie.'; fi
     exit 0
 fi
 
-step 3 'Confirmer les prérequis puis les applications'
-[[ -t 0 && -t 1 ]] || fatal 'Exécution réelle refusée sans terminal interactif. Utiliser --dry-run.'
+step 3 'Confirmer et lancer l’installation'
 if (( ${#HOST_TARGETS[@]} > 0 )); then
     command -v sudo >/dev/null 2>&1 || fatal 'sudo est requis pour installer les prérequis natifs.'
-    if ! confirm 'Autoriser les paquets natifs annoncés et la mise à jour système ?'; then
-        info 'Prérequis refusés. Installation Flatpak annulée.'
-        exit 0
-    fi
-    APPROVED_HOST=$(printf '%s\n' "${HOST_TARGETS[@]}" "$HOST_REPOS")
-    read_host_plan
-    [[ "$APPROVED_HOST" == "$(printf '%s\n' "${HOST_TARGETS[@]}" "$HOST_REPOS")" ]] ||
-        fatal 'Le plan Pacman a changé. Relancer pour examiner les nouvelles cibles.'
+    warn 'L’accord inclut la mise à jour complète de Pacman avec ses réponses par défaut.'
+fi
+warn 'L’accord couvre l’ajout éventuel de Flathub, les applications sélectionnées, leurs runtimes et extensions.'
+info 'Les applications déjà présentes pourront être mises à jour. Les questions d’installation recevront leurs réponses par défaut.'
+if ! confirm 'Autoriser toute cette installation ?'; then info 'Installation annulée.'; exit 0; fi
+
+APPROVED_HOST=$(printf '%s\n' "${HOST_TARGETS[@]}" "$HOST_REPOS")
+read_host_plan
+[[ "$APPROVED_HOST" == "$(printf '%s\n' "${HOST_TARGETS[@]}" "$HOST_REPOS")" ]] ||
+    fatal 'Le plan Pacman a changé. Relancer pour examiner les nouvelles cibles.'
+if $FLATPAK_PREVIEW; then recheck_flatpak_plan; fi
+if (( ${#HOST_TARGETS[@]} > 0 )); then
     create_snapshot
     pacman -Q > "$SNAPSHOT/paquets-hote-avant.txt"
     HOST_CHANGED=true
-    sudo pacman -Syu --needed -- "${HOST_TARGETS[@]}" ||
+    sudo pacman -Syu --needed --noconfirm -- "${HOST_TARGETS[@]}" ||
         fatal 'La transaction Pacman a échoué ou a été annulée.'
     pacman -Q > "$SNAPSHOT/paquets-hote-apres.txt"
     read_host_plan
     (( ${#HOST_MISSING[@]} == 0 )) || fatal "Prérequis encore manquants : ${HOST_MISSING[*]}"
     ok 'Prérequis natifs vérifiés après la transaction.'
-    show_flatpak_plan
+    if $FLATPAK_PREVIEW; then recheck_flatpak_plan; fi
 fi
-for tool in flatpak distrobox podman; do
-    command -v "$tool" >/dev/null 2>&1 || fatal "Commande attendue absente : $tool."
-done
-warn 'Effets : accès réseau, cache, ajout éventuel de Flathub, applications et runtimes.'
-info 'Les applications déjà présentes pourront être mises à jour ; une liste ne remplace pas une sauvegarde de leurs données.'
-if ! confirm 'Autoriser ces opérations Flatpak ?'; then
-    info 'Opérations Flatpak annulées.'
-    if $HOST_CHANGED; then info "Paquets natifs conservés. Inventaire : $SNAPSHOT"; fi
-    exit 0
+command -v flatpak >/dev/null 2>&1 || fatal 'Commande attendue absente : flatpak.'
+if selected io.github.dvlv.boxbuddyrs; then
+    for tool in distrobox podman; do
+        command -v "$tool" >/dev/null 2>&1 || fatal "Commande attendue pour BoxBuddy absente : $tool."
+    done
 fi
-PREVIEW_REMOTES=$REMOTES
-PREVIEW_INSTALLED=$INSTALLED
-read_host_plan
-(( ${#HOST_MISSING[@]} == 0 )) || fatal 'Les prérequis natifs ont changé. Relancer pour examiner le nouvel aperçu.'
-read_local_state
-check_origins
-[[ "$PREVIEW_REMOTES" == "$REMOTES" && "$PREVIEW_INSTALLED" == "$INSTALLED" ]] || fatal 'État local modifié pendant la confirmation. Relancer pour examiner le nouvel aperçu.'
+if ! $FLATPAK_PREVIEW; then show_flatpak_plan; fi
 
 if [[ -z "$SNAPSHOT" ]]; then create_snapshot; fi
 printf '%s\n' "$REMOTES" > "$SNAPSHOT/depots-avant.txt"
@@ -314,7 +393,7 @@ des runtimes et des données ; il n'est jamais automatisé ici.
 Un dépôt ajouté peut être retiré manuellement avec flatpak remote-delete --user
 flathub, uniquement lorsqu'il n'est plus utilisé et après examen.
 EOF
-info "Inventaire : $SNAPSHOT"
+status_line "$VIOLET" 'Inventaire' "$SNAPSHOT"
 if ! $HAS_FLATHUB; then
     flatpak_user remote-add --if-not-exists flathub "$FLATHUB_DESCRIPTOR" || fatal 'Ajout de Flathub personnel en échec.'
 fi
@@ -322,41 +401,47 @@ read_local_state
 $HAS_FLATHUB || fatal 'Flathub personnel absent après son ajout.'
 check_origins
 
-# Vérifier toutes les références distantes avant la première installation.
+# Vérifier les références sélectionnées avant la première installation.
 # Ne pas utiliser --cached en simulation : cette option préfère le cache,
 # mais ne garantit pas l'absence de requêtes réseau.
 unavailable=0
+verified_refs=()
 for entry in "${applications[@]}"; do
     ref="app/${entry%%:*}/$ARCH/stable"
     if resolved=$(flatpak_user remote-info --show-ref flathub "$ref"); then
-        if [[ "$resolved" != "$ref" ]]; then
-            printf 'Référence inattendue : %s (attendue : %s)\n' "$resolved" "$ref" >&2
+        if [[ "$resolved" == "$ref" ]]; then
+            verified_refs+=("$ref")
+        else
+            error "Référence inattendue : $resolved (attendue : $ref)"
             unavailable=$((unavailable + 1))
         fi
     else
-        printf 'Référence indisponible ou non vérifiable : %s\n' "$ref" >&2
+        error "Référence indisponible ou non vérifiable : $ref"
         unavailable=$((unavailable + 1))
     fi
 done
-(( unavailable == 0 )) || fatal "$unavailable référence(s) non vérifiable(s). Aucune application installée ; le dépôt et le cache ont pu être créés."
 
 installed_count=0
 updated_count=0
 unchanged_count=0
-failed_count=0
-for entry in "${applications[@]}"; do
-    ref="app/${entry%%:*}/$ARCH/stable"
+failed_count=$unavailable
+for ref in ${verified_refs[@]+"${verified_refs[@]}"}; do
+    id="${ref#app/}"
+    id="${id%%/*}"
     before_commit=''
     if [[ -n "$(origin_for "$ref")" ]]; then
-        before_commit=$(flatpak_user info --show-commit "$ref") || fatal "Lecture du commit installé impossible : $ref."
-        info "Vérifier les mises à jour : ${entry%%:*}"
-        if ! flatpak_user update "$ref"; then
-            printf 'Échec ou annulation de la mise à jour : %s\n' "$ref" >&2
+        if ! before_commit=$(flatpak_user info --show-commit "$ref") || [[ -z "$before_commit" ]]; then
+            error "Lecture du commit installé impossible : $ref."
+            failed_count=$((failed_count + 1)); continue
+        fi
+        status_line "$CYAN" 'Vérification' "$id"
+        if ! flatpak_progress update --assumeyes "$ref"; then
+            error "Mise à jour échouée ou annulée : $ref"
             failed_count=$((failed_count + 1)); continue
         fi
     else
-        info "Installer : ${entry%%:*}"
-        if ! flatpak_user install flathub "$ref"; then
+        status_line "$CYAN" 'Installation' "$id"
+        if ! flatpak_progress install --assumeyes flathub "$ref"; then
             error "Échec ou annulation de l’installation : $ref"
             failed_count=$((failed_count + 1)); continue
         fi
@@ -364,32 +449,48 @@ for entry in "${applications[@]}"; do
     if ! after_commit=$(flatpak_user info --show-commit "$ref") ||
        ! after_origin=$(flatpak_user info --show-origin "$ref") ||
        [[ -z "$after_commit" || "$after_origin" != flathub ]]; then
-        printf 'État final non conforme ou non vérifiable : %s\n' "$ref" >&2
+        error "État final non conforme ou non vérifiable : $ref"
         failed_count=$((failed_count + 1)); continue
     fi
     if [[ -z "$before_commit" ]]; then
+        status_line "$GREEN" 'Installée' "$id"
         installed_count=$((installed_count + 1))
         printf '%s\n' "$ref" >> "$SNAPSHOT/nouvelles-applications.txt"
     elif [[ "$before_commit" != "$after_commit" ]]; then
+        status_line "$GREEN" 'Mise à jour' "$id"
         updated_count=$((updated_count + 1))
     else
+        status_line "$BLUE" 'Inchangée' "$id"
         unchanged_count=$((unchanged_count + 1))
     fi
 done
 if $CLEANUP && (( failed_count == 0 )); then
     if confirm 'Proposer à Flatpak de supprimer les runtimes personnels inutilisés ?'; then
-        if ! flatpak_user uninstall --unused; then
-            info 'Le nettoyage a échoué ou a été annulé ; examiner les messages Flatpak.'
+        if ! flatpak_progress uninstall --unused; then
+            error 'Nettoyage échoué ou annulé. Examiner les messages Flatpak.'
             failed_count=$((failed_count + 1))
         fi
     else
-        info 'Nettoyage ignoré.'
+        status_line "$BLUE" 'Ignoré' 'Nettoyage des runtimes.'
     fi
 fi
 step 4 'Afficher le bilan'
 flatpak_user list --all --columns=ref,origin,active > "$SNAPSHOT/references-apres.txt"
 flatpak_user remotes --columns=name,url,options > "$SNAPSHOT/depots-apres.txt"
-printf 'Bilan : %s nouvelles, %s mises à jour, %s inchangées, %s erreurs.\n' "$installed_count" "$updated_count" "$unchanged_count" "$failed_count"
-info "Inventaires : $SNAPSHOT"
+printf -v totals '%s nouvelles, %s mises à jour, %s inchangées, %s erreurs.' \
+    "$installed_count" "$updated_count" "$unchanged_count" "$failed_count"
+if (( failed_count == 0 )); then
+    status_line "$GREEN" 'Bilan' "$totals"
+else
+    status_line "$SUMMARY_RED" 'Bilan en échec' "$totals"
+fi
+status_line "$VIOLET" 'Inventaires' "$SNAPSHOT"
+if (( installed_count > 0 )); then
+    user_exports="${FLATPAK_USER_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/flatpak}/exports/share"
+    if [[ ":${XDG_DATA_DIRS:-}:" != *":$user_exports:"* ]]; then
+        warn 'Les lanceurs Flatpak peuvent manquer dans le menu. Fermez puis rouvrez la session graphique pour actualiser XDG_DATA_DIRS.'
+        info 'Les applications installées se lancent aussi avec flatpak run IDENTIFIANT.'
+    fi
+fi
 (( failed_count == 0 )) || fatal 'Exécution terminée avec des erreurs ; consulter les messages ci-dessus.'
 ok 'Installation et vérification terminées sans erreur.'

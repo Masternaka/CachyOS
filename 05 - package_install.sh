@@ -25,7 +25,7 @@ GROUP_UTILITAIRES=(
       qbittorrent
       transmission-qt
       #lshw
-      fwupd
+      #fwupd
       timeshift
       7zip
       stow
@@ -190,17 +190,19 @@ append_group() {
 
 
 # Présentation du plan et du bilan dans le terminal.
-CYAN='' BOLD='' GREEN='' YELLOW='' RED='' RESET='' ERROR_RESET=''
+CYAN='' BOLD='' GREEN='' YELLOW='' BLUE='' VIOLET='' RED='' RESET='' ERROR_RESET=''
 if [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
   if [[ -t 1 ]]; then
-    CYAN='\033[1;36m' BOLD='\033[1m' GREEN='\033[32m' YELLOW='\033[33m' RESET='\033[0m'
+    CYAN='\033[1;36m' BOLD='\033[1m' GREEN='\033[1;32m' YELLOW='\033[1;33m'
+    BLUE='\033[1;94m' VIOLET='\033[1;95m' RESET='\033[0m'
   fi
   if [[ -t 2 ]]; then RED='\033[1;31m' ERROR_RESET='\033[0m'; fi
 fi
 info() { printf '  %s\n' "$*"; }
-ok() { printf '  %bOK%b  %s\n' "$GREEN" "$RESET" "$*"; }
-warn() { printf '  %bAttention%b  %s\n' "$YELLOW" "$RESET" "$*"; }
-error() { printf '  %bErreur%b  %s\n' "$RED" "$ERROR_RESET" "$*" >&2; }
+status_line() { printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3"; }
+ok() { status_line "$GREEN" 'OK' "$*"; }
+warn() { status_line "$YELLOW" 'Attention' "$*"; }
+error() { printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$*" >&2; }
 fatal() { error "$1"; exit "${2:-1}"; }
 step() { printf '\n%b── %s/%s  %s%b\n' "$CYAN" "$1" "$STEPS" "$2" "$RESET"; }
 
@@ -323,13 +325,13 @@ resolve_packages() {
     # Lire toute la sortie évite un SIGPIPE avec pipefail sur de grosses bases.
     target=$(printf '%s\n' "$listing" | awk -v pkg="$package" '$2 == pkg && !found {print $1 "/" $2; found=1}')
     if [[ -z "$target" ]]; then
-      printf '  INTROUVABLE : %s\n' "$package" >&2
+      error "Paquet introuvable : $package"
       missing=$((missing + 1))
       continue
     fi
     allowed_repository "${target%%/*}" || fatal "Source non autorisée : $target."
     TARGETS+=("$target")
-    printf '  %s\n' "$target"
+    status_line "$CYAN" 'Sélectionné' "$target"
   done
   (( missing == 0 )) || fatal "$missing paquet(s) introuvable(s). Aucune installation ; aucun recours à l'AUR."
 }
@@ -346,7 +348,7 @@ printf ' %q' pacman -Syu --needed "${TARGETS[@]}"
 printf '\n'
 if $DRY_RUN; then
   step 3 'Bilan de la simulation'
-  ok 'Simulation terminée : aucun fichier écrit et aucune installation effectuée.'
+  status_line "$CYAN" 'Simulation' 'Simulation terminée : aucun fichier écrit et aucune installation effectuée.'
   info 'Disponibilité constatée dans les bases locales ; versions finales vérifiées par la transaction réelle.'
   exit 0
 fi
@@ -408,7 +410,7 @@ Un retour à une ancienne version doit tenir compte des dépendances et nécessi
 des archives compatibles ou un instantané système existant.
 Les fichiers personnels, configurations et services ne sont pas sauvegardés ici.
 EOF
-info "Inventaire avant transaction : $SNAPSHOT"
+status_line "$VIOLET" 'Inventaire' "$SNAPSHOT"
 TRANSACTION_STARTED=true
 # Une transaction groupée, cibles attachées au dépôt, confirmations natives.
 # Aucune synchronisation -Sy séparée susceptible de laisser une mise à jour partielle.
@@ -426,13 +428,24 @@ missing=0
 new_count=0
 for package in "${PACKAGES[@]}"; do
   if ! pacman -Q "$package" >/dev/null 2>&1; then
-    printf 'Paquet demandé absent après la transaction : %s\n' "$package" >&2
+    error "Paquet demandé absent après la transaction : $package"
     missing=$((missing + 1))
-  elif ! awk -v pkg="$package" '$1 == pkg {found=1} END {exit !found}' "$SNAPSHOT/paquets-avant.txt"; then
-    new_count=$((new_count + 1))
+    continue
+  fi
+  before_version=$(awk -v pkg="$package" '$1 == pkg {print $2; exit}' "$SNAPSHOT/paquets-avant.txt")
+  after_version=$(awk -v pkg="$package" '$1 == pkg {print $2; exit}' "$SNAPSHOT/paquets-apres.txt")
+  if [[ -z "$before_version" ]]; then new_count=$((new_count + 1)); fi
+  if [[ -z "$after_version" ]]; then
+    warn "$package présent, version absente de l’inventaire final."
+  elif [[ -z "$before_version" ]]; then
+    status_line "$GREEN" 'Installé' "$package · $after_version"
+  elif [[ "$before_version" != "$after_version" ]]; then
+    status_line "$GREEN" 'Version changée' "$package · $before_version → $after_version"
+  else
+    status_line "$BLUE" 'Inchangé' "$package · $after_version"
   fi
 done
 (( missing == 0 )) || fatal "$missing paquet(s) demandé(s) absent(s) après la transaction."
 ok "Transaction terminée : ${#PACKAGES[@]} paquets demandés présents, dont $new_count nouvellement installés."
-info "Inventaires et versions avant/après : $SNAPSHOT"
+status_line "$VIOLET" 'Inventaires' "$SNAPSHOT"
 info 'Les autres changements du système sont consignés par Pacman. Cache conservé.'

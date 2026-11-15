@@ -107,10 +107,11 @@ class FlatpakTests(unittest.TestCase):
         self.apps = [line.split()[0] for line in lines]
         self.refs = ['app/' + app + '/x86_64/stable' for app in self.apps]
 
-    def run_script(self, *args, terminal=False, answers=('o',), path=SCRIPT):
+    def run_script(self, *args, terminal=False, answers=('o',), selection=None, path=SCRIPT):
         (self.root / 'config.json').write_text(json.dumps(self.config))
         (self.root / 'state.json').write_text(json.dumps(self.state))
-        cmd = ['/bin/bash', str(path), *args]
+        choices = ['--all'] if terminal and selection is None else []
+        cmd = ['/bin/bash', str(path), *choices, *args]
         if not terminal:
             return subprocess.run(cmd, env=self.env, capture_output=True, text=True)
         master, slave = pty.openpty()
@@ -118,6 +119,7 @@ class FlatpakTests(unittest.TestCase):
         os.close(slave)
         output = b''
         sent = 0
+        selection_sent = selection is None
         deadline = time.monotonic() + 20
         try:
             while True:
@@ -131,6 +133,9 @@ class FlatpakTests(unittest.TestCase):
                         break
                     if not chunk: break
                     output += chunk
+                    if not selection_sent and b'q = quitter] : ' in output:
+                        os.write(master, (selection + '\n').encode())
+                        selection_sent = True
                     if output.count(b'[o/N]') > sent and sent < len(answers):
                         os.write(master, (answers[sent] + '\n').encode())
                         sent += 1
@@ -184,14 +189,33 @@ class FlatpakTests(unittest.TestCase):
         self.assertIn('extra/flatpak extra/podman', result.stdout)
         self.assert_no_changes()
 
-    def test_native_install_and_flatpak_have_separate_confirmation(self):
+    def test_native_install_and_flatpak_follow_one_confirmation(self):
         self.config['host_missing'] = ['podman']
-        result = self.run_script(terminal=True, answers=('o', 'n'))
+        result = self.run_script(terminal=True)
         self.assertEqual(result.returncode, 0, result.stdout)
-        self.assertIn(['pacman', '-Syu', '--needed', '--', 'extra/podman'], self.calls())
-        self.assertEqual(self.operations(), [])
+        self.assertEqual(result.stdout.count('[o/N]'), 1)
+        self.assertIn(['pacman', '-Syu', '--needed', '--noconfirm', '--', 'extra/podman'], self.calls())
+        self.assertEqual(sum(c[1] == 'install' for c in self.operations()), 13)
         snapshot, = self.root.glob('snapshot-*')
         self.assertTrue((snapshot / 'paquets-hote-apres.txt').exists())
+
+    def test_menu_selects_only_requested_apps_and_prerequisites(self):
+        self.config['host_missing'] = ['podman', 'pipewire-audio']
+        result = self.run_script(terminal=True, selection='2,3,2')
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(result.stdout.count('[o/N]'), 1)
+        installed = [c[-2] for c in self.operations() if c[1] == 'install']
+        self.assertEqual(installed, self.refs[1:3])
+        self.assertFalse(any(c[:2] == ['pacman', '-Syu'] for c in self.calls()))
+
+    def test_only_accepts_ids_and_rejects_apps_outside_catalogue(self):
+        result = self.run_script('--dry-run', '--only', self.apps[2])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(self.refs[2], result.stdout)
+        self.assertNotIn(self.refs[1], result.stdout)
+        result = self.run_script('--dry-run', '--only', '99')
+        self.assertEqual(result.returncode, 2)
+        self.assert_no_changes()
 
     def test_invalid_remote_is_blocking(self):
         self.config['url'] = 'https://example.org/repo/'
@@ -229,10 +253,12 @@ class FlatpakTests(unittest.TestCase):
         self.assertNotEqual(self.run_script(terminal=True).returncode, 0)
         self.assert_no_changes()
 
-    def test_missing_ref_prevents_all_application_installations(self):
+    def test_missing_ref_is_reported_and_other_applications_install(self):
         self.config['missing'] = self.refs[2]
         self.assertNotEqual(self.run_script(terminal=True).returncode, 0)
-        self.assertEqual(self.operations(), [])
+        self.assertEqual(sum(c[1] == 'install' for c in self.operations()), 12)
+        self.assertFalse(any(self.refs[2] in c for c in self.operations()))
+        self.assertIn('1 erreurs', result.stdout)
 
     def test_unexpected_resolved_ref_is_blocking(self):
         self.config['wrong_ref'] = True
@@ -252,6 +278,7 @@ class FlatpakTests(unittest.TestCase):
         self.assertTrue((snapshot / 'references-apres.txt').exists())
         for c in self.calls():
             if c[0] == 'flatpak' and c[1] != '--default-arch': self.assertIn('--user', c)
+            if c[0] == 'flatpak' and c[1] in ('install', 'update'): self.assertIn('--assumeyes', c)
             self.assertNotIn('-y', c)
             self.assertNotIn('--system', c)
 

@@ -42,14 +42,14 @@ def info(message):
 def preview_file(entry):
     state = entry['before']['kind']
     if matches(Path(entry['target']), wanted(entry)):
-        label, color = 'Conforme', '32'
+        label, color = 'Conforme', '1;32'
     elif entry['method'] == 'stow':
-        label, color = 'À lier', '36'
+        label, color = 'À lier', '1;36'
     elif state == 'missing':
-        label, color = 'À créer', '36'
+        label, color = 'À créer', '1;36'
     else:
-        label, color = 'À remplacer', '33'
-    label = f'{label:<13}'
+        label, color = 'À remplacer', '1;33'
+    label = f'[{label}]'
     if (sys.stderr.isatty() and not os.environ.get('NO_COLOR')
             and os.environ.get('TERM', 'dumb') != 'dumb'):
         label = f'\033[{color}m{label}\033[0m'

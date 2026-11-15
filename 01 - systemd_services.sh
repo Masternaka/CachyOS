@@ -3,23 +3,36 @@
 set -euo pipefail
 
 # ─── Affichage ───────────────────────────────────────────────────────────────
-GREEN='' YELLOW='' CYAN='' BOLD='' RESET=''
+GREEN='' YELLOW='' CYAN='' BLUE='' STATE_RED='' VIOLET='' BOLD='' RESET=''
 RED='' ERROR_RESET=''
 if [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
   if [[ -t 1 ]]; then
-    GREEN='\033[32m' YELLOW='\033[33m' CYAN='\033[1;36m' BOLD='\033[1m' RESET='\033[0m'
+    GREEN='\033[1;32m' YELLOW='\033[1;33m' CYAN='\033[1;36m' BLUE='\033[1;94m'
+    STATE_RED='\033[1;31m' VIOLET='\033[1;95m' BOLD='\033[1m' RESET='\033[0m'
   fi
   if [[ -t 2 ]]; then
     RED='\033[1;31m' ERROR_RESET='\033[0m'
   fi
 fi
 
-info()   { printf '  %b%-12s%b %s\n' "$GREEN" 'OK' "$RESET" "$*"; }
-warn()   { printf '  %b%-12s%b %s\n' "$YELLOW" 'Attention' "$RESET" "$*"; }
-error()  { printf '  %b%-12s%b %s\n' "$RED" 'Erreur' "$ERROR_RESET" "$*" >&2; }
+info()   { printf '  %b[OK]%b %s\n' "$GREEN" "$RESET" "$*"; }
+warn()   { printf '  %b[Attention]%b %s\n' "$YELLOW" "$RESET" "$*"; }
+error()  { printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$*" >&2; }
 detail() { printf '  %b%-12s%b %s\n' "$BOLD" "$1" "$RESET" "$2"; }
-dry()    { printf '  %b%-12s%b %s\n' "$CYAN" 'Simulation' "$RESET" "$*"; }
+dry()    { printf '  %b[Simulation]%b %s\n' "$CYAN" "$RESET" "$*"; }
 step()   { printf '\n%b── %s/3  %s%b\n' "$CYAN" "$1" "$2" "$RESET"; }
+backup() { printf '  %b[Sauvegarde]%b %s\n' "$VIOLET" "$RESET" "$*"; }
+
+show_state() {
+  local label="$1" boot="$2" active="$3" boot_color="$YELLOW" active_color="$YELLOW"
+  if [[ "$boot" == enabled ]]; then boot_color="$BLUE"; fi
+  case "$active" in
+    active) active_color="$GREEN" ;;
+    failed) active_color="$STATE_RED" ;;
+  esac
+  printf '  %s  Démarrage %b[%s]%b  ·  État %b[%s]%b\n' \
+    "$label" "$boot_color" "$boot" "$RESET" "$active_color" "$active" "$RESET"
+}
 
 # ─── Dry-run et arguments ────────────────────────────────────────────────────
 usage() {
@@ -138,7 +151,7 @@ record_undo() {
       '# Ne restaure ni le cache supprimé, ni les effets du TRIM, ni un état failed.' \
       '[[ $EUID -eq 0 ]] || { echo "Exécutez avec sudo bash." >&2; exit 1; }' > "$candidate" || return 1
     UNDO_FILE="$candidate"
-    detail 'Sauvegarde' "Retour arrière enregistré dans : $UNDO_FILE"
+    backup "Retour arrière enregistré dans : $UNDO_FILE"
   fi
   {
     printf '\n# %s : activation=%s, état=%s\n' "$unit" "$enabled" "$active" || return 1
@@ -162,7 +175,7 @@ enable_unit() {
   check_deps "$unit" || return 1
   read_state "$unit" || return 1
   initial_enabled="$ENABLED_STATE"; initial_active="$ACTIVE_STATE"
-  detail 'Avant' "activation=$initial_enabled, état=$initial_active"
+  show_state 'Avant' "$initial_enabled" "$initial_active"
   if [[ "$initial_enabled" == enabled && "$initial_active" == active ]]; then
     info "$unit — déjà activé durablement et actif, aucune action."
     return 0
@@ -225,9 +238,10 @@ else
   for unit in "${UNITS[@]}"; do
     if ! read_state "$unit"; then
       FAILURES=$((FAILURES + 1))
-    elif [[ "$ENABLED_STATE" == enabled && "$ACTIVE_STATE" == active ]]; then
-      info "$unit — activé durablement et actif."
-    else
+      continue
+    fi
+    show_state "$unit" "$ENABLED_STATE" "$ACTIVE_STATE"
+    if [[ "$ENABLED_STATE" != enabled || "$ACTIVE_STATE" != active ]]; then
       error "$unit — objectif non atteint : activation=$ENABLED_STATE, état=$ACTIVE_STATE."
       FAILURES=$((FAILURES + 1))
     fi
@@ -235,7 +249,7 @@ else
 fi
 if [[ -n "$UNDO_FILE" ]]; then
   printf '\n'
-  detail 'Sauvegarde' "Examinez $UNDO_FILE avant tout retour arrière."
+  backup "Examinez $UNDO_FILE avant tout retour arrière."
   detail 'Commande' "sudo bash $UNDO_FILE"
 fi
 if (( FAILURES > 0 )); then
@@ -243,7 +257,7 @@ if (( FAILURES > 0 )); then
   exit 1
 fi
 if $DRY_RUN; then
-  info 'Dry-run terminé — aucune modification effectuée.'
+  dry 'Dry-run terminé — aucune modification effectuée.'
 else
   info 'Terminé — toutes les unités sont activées durablement et actives.'
 fi

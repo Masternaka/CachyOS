@@ -29,18 +29,18 @@ REPORT=()
 SESSION=''
 PHASE=''
 
-GREEN='' YELLOW='' RED='' CYAN='' BOLD='' RESET=''
+GREEN='' YELLOW='' RED='' CYAN='' BLUE='' VIOLET='' BOLD='' RESET=''
 if [[ -t 2 && -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
-    GREEN='\033[32m' YELLOW='\033[33m' RED='\033[1;31m'
-    CYAN='\033[1;36m' BOLD='\033[1m' RESET='\033[0m'
+    GREEN='\033[1;32m' YELLOW='\033[1;33m' RED='\033[1;31m'
+    CYAN='\033[1;36m' BLUE='\033[1;94m' VIOLET='\033[1;95m' BOLD='\033[1m' RESET='\033[0m'
 fi
 
-status_line() { printf '  %b%-12s%b %s\n' "$1" "$RESET" "$2" "$3" >&2; }
+status_line() { printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3" >&2; }
 info() { status_line "$BOLD" 'Info' "$*"; }
 ok() { status_line "$GREEN" 'OK' "$*"; }
 warn() { status_line "$YELLOW" 'Attention' "$*"; }
 dry() { status_line "$CYAN" 'Simulation' "$*"; }
-error() { status_line "$RED" 'Erreur' "$*"; }
+error() { status_line "$RED" 'Échec' "$*"; }
 fatal() { error "$1"; exit "${2:-1}"; }
 step() {
     PHASE="$2"
@@ -52,13 +52,13 @@ print_report() {
     printf '\n%b── Rapport final%b\n' "$CYAN" "$RESET" >&2
     for entry in ${REPORT[@]+"${REPORT[@]}"}; do info "$entry"; done
     if [[ -n "$SESSION" ]]; then
-        info "Sauvegarde : $SESSION"
-        info "Retour arrière : bash \"$SESSION/restaurer.sh\""
+        status_line "$VIOLET" 'Sauvegarde' "$SESSION"
+        status_line "$VIOLET" 'Retour arrière' "bash \"$SESSION/restaurer.sh\""
     fi
     if (( status != 0 )); then
         error "Arrêt à l’étape « $PHASE » (code $status). Consultez les détails ci-dessus."
     elif $DRY_RUN; then
-        ok 'Simulation terminée. Aucune modification appliquée.'
+        dry 'Simulation terminée. Aucune modification appliquée.'
     else
         ok 'Opération terminée.'
     fi
@@ -334,6 +334,7 @@ for pkg in "${PKGS[@]}"; do
     fi
 done
 if (( ${#MISSING[@]} > 0 )); then
+    for pkg in "${MISSING[@]}"; do status_line "$CYAN" 'À installer' "$pkg"; done
     warn "Installation ET mise à jour système proposées : ${MISSING[*]}"
     printf ' sudo pacman -Syu --needed'; printf ' %q' "${MISSING[@]}"; printf '\n'
     warn 'Les paquets et mises à jour ne sont pas annulés par la restauration des configurations.'
@@ -368,8 +369,10 @@ if (( ${#MISSING[@]} > 0 )); then
     REPORT+=("Transaction Pacman demandée : ${MISSING[*]}")
     sudo pacman -Syu --needed "${MISSING[@]}" || fatal 'Transaction Pacman interrompue ou échouée. Vérifiez son résultat avant de relancer.' "$?"
     for pkg in "${PKGS[@]}"; do pacman -Q "$pkg" >/dev/null || fatal "Paquet toujours absent : $pkg"; done
+    for pkg in "${MISSING[@]}"; do status_line "$GREEN" 'Installé' "$pkg"; done
     REPORT+=('Transaction Pacman terminée, présence des paquets vérifiée.')
 else
+    status_line "$BLUE" 'Déjà présents' "${PKGS[*]}"
     REPORT+=('Paquets requis déjà présents.')
 fi
 for module in "${SELECTED[@]}"; do

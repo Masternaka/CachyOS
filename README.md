@@ -16,10 +16,10 @@ d'exécution. Examiner leurs prérequis et leurs simulations avant de les appliq
 | [03 · Réglages Pacman](docs/pacman-settings.md) | Téléchargements parallèles | Avec `sudo`, saisie interactive ou options explicites |
 | [04 · Zsh et outils du terminal](docs/zsh.md) | Outils, configurations, GNU Stow et changement de shell facultatif | Sans `sudo`, confirmations par étape |
 | [05 · Paquets natifs](docs/package-install.md) | 62 paquets des dépôts officiels utilisés par CachyOS | Sans `sudo` conseillé, élévation pour Pacman après confirmation |
-| [06 · Applications Flatpak](docs/flatpak-install.md) | Prérequis natifs et 13 applications Flathub personnelles | Compte normal, accords séparés pour Pacman et Flatpak |
+| [06 · Applications Flatpak](docs/flatpak-install.md) | Prérequis natifs et sélection parmi 13 applications Flathub personnelles | Compte normal, accord global avant l’installation |
 | [07 · QEMU et Virt-Manager](docs/qemu.md) | KVM, libvirt, UEFI, TPM, stockage et réseau virtuel | Compte normal, confirmations avant les actions `sudo` |
 | [08 · master-archrepo](docs/master-archrepo.md) | Dépôt Pacman tiers pour SambaPilot et DotfilePilot | Avec `sudo` et une empreinte vérifiée, sans simulation ni confirmation intégrée |
-| [09 · Purge d’applications](docs/purge-applications.md) | Paquets Pacman, Flatpaks personnels et configurations ciblées | Simulation par défaut, application avec confirmation |
+| [09 · Purge d’applications](docs/purge-applications.md) | Inventaire Pacman et Flatpak, sélection interactive et configurations ciblées | Simulation par défaut, application avec confirmation |
 
 Les [guides détaillés](docs/README.md) et le [catalogue Dotfiles](Dotfiles/README.md)
 décrivent les fichiers, les sauvegardes et les limites de validation.
@@ -31,8 +31,12 @@ GNU Stow est proposé par l'installateur Zsh, même en mode copie.
 Depuis la racine du dépôt, utiliser `bash "nom du script.sh" --help` dans
 Fish ou Zsh. Commencer par `--dry-run` quand le guide le propose. Les
 simulations et applications réelles ont chacune leurs prérequis.
-Les titres, avertissements et bilans sont colorés dans le terminal.
-`NO_COLOR=1` permet de désactiver les couleurs.
+Les statuts s’affichent avec leur libellé. **Vert** indique un succès vérifié
+ou un service `active`. **Bleu** indique un état déjà conforme, un résultat
+inchangé ou un démarrage `enabled`. **Cyan** signale le plan et la simulation,
+**jaune** un état inactif ou un avertissement, **rouge** un échec et **violet**
+une sauvegarde ou un inventaire. Les scripts omettent leurs couleurs sur
+les sorties redirigées ou avec `NO_COLOR=1`.
 
 ## Installation des logiciels
 
@@ -67,11 +71,13 @@ d’installer les prérequis natifs manquants avec Pacman. Il prépare ensuite
 ```bash
 bash "06 - flatpak_install.sh" --list
 bash "06 - flatpak_install.sh" --dry-run
+bash "06 - flatpak_install.sh" --dry-run --only 2,3
 ```
 
-La simulation utilise l’état local. Les paquets natifs et les applications
-Flatpak font l’objet de confirmations distinctes. Le
-[guide Flatpak](docs/flatpak-install.md) détaille les prérequis et les inventaires.
+Dans le menu, saisir les numéros séparés par des virgules ou appuyer sur Entrée
+pour sélectionner tout le catalogue. Un seul accord lance le lot sélectionné.
+Le [guide Flatpak](docs/flatpak-install.md) détaille les prérequis, la portée
+de l’accord et les inventaires.
 
 ## QEMU et Virt-Manager
 

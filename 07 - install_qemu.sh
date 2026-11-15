@@ -9,16 +9,20 @@ SNAPSHOT=''
 URI=qemu:///system
 PACKAGES=(qemu-full libvirt virt-manager edk2-ovmf swtpm)
 
-CYAN='' GREEN='' YELLOW='' RED='' RESET='' ERROR_RESET=''
+CYAN='' GREEN='' YELLOW='' BLUE='' VIOLET='' STATE_RED='' RED='' RESET='' ERROR_RESET=''
 if [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
-    if [[ -t 1 ]]; then CYAN='\033[1;36m' GREEN='\033[32m' YELLOW='\033[33m' RESET='\033[0m'; fi
+    if [[ -t 1 ]]; then
+        CYAN='\033[1;36m' GREEN='\033[1;32m' YELLOW='\033[1;33m' BLUE='\033[1;94m'
+        VIOLET='\033[1;95m' STATE_RED='\033[1;31m' RESET='\033[0m'
+    fi
     if [[ -t 2 ]]; then RED='\033[1;31m' ERROR_RESET='\033[0m'; fi
 fi
 step() { printf '\n%b── %s/%s  %s%b\n' "$CYAN" "$1" "$STEPS" "$2" "$RESET"; }
 info() { printf '  %s\n' "$*"; }
-ok() { printf '  %bOK%b  %s\n' "$GREEN" "$RESET" "$*"; }
-warn() { printf '  %bAttention%b  %s\n' "$YELLOW" "$RESET" "$*"; }
-fatal() { printf '  %bErreur%b  %s\n' "$RED" "$ERROR_RESET" "$*" >&2; exit 1; }
+status_line() { printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3"; }
+ok() { status_line "$GREEN" 'OK' "$*"; }
+warn() { status_line "$YELLOW" 'Attention' "$*"; }
+fatal() { printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$*" >&2; exit 1; }
 confirm() {
     local answer
     printf '%s [o/N] ' "$1"
@@ -152,7 +156,7 @@ fi
 if $DRY_RUN; then
     step 3 'Bilan de la simulation'
     info 'L’état des réseaux et pools sera lu après accord pour la configuration libvirt.'
-    ok 'Simulation terminée. Aucune modification appliquée.'
+    status_line "$CYAN" 'Simulation' 'Simulation terminée. Aucune modification appliquée.'
     exit 0
 fi
 
@@ -161,7 +165,7 @@ step 3 'Confirmer et installer les paquets manquants'
 command -v sudo >/dev/null || fatal 'sudo est requis pour l’application.'
 create_snapshot() {
     SNAPSHOT=$(sudo mktemp -d /var/tmp/cachyos-qemu.XXXXXXXX) || fatal 'Sauvegarde privée impossible.'
-    info "Sauvegarde privée : $SNAPSHOT"
+    status_line "$VIOLET" 'Sauvegarde privée' "$SNAPSHOT"
 }
 if (( ${#TARGETS[@]} > 0 )); then
     confirm 'Autoriser les paquets annoncés et la mise à jour système ?' || { info 'Installation annulée.'; exit 0; }
@@ -174,8 +178,10 @@ if (( ${#TARGETS[@]} > 0 )); then
     pacman -Q | sudo tee "$SNAPSHOT/paquets-apres.txt" >/dev/null
     read_package_plan
     (( ${#TARGETS[@]} == 0 )) || fatal 'Des paquets requis sont encore manquants.'
+    status_line "$GREEN" 'Installation vérifiée' 'Tous les paquets requis sont présents.'
+else
+    status_line "$BLUE" 'Déjà installés' 'Tous les paquets requis sont présents.'
 fi
-ok 'Paquets QEMU, libvirt et Virt-Manager présents.'
 for tool in virsh virt-manager; do
     command -v "$tool" >/dev/null || fatal "Commande attendue absente : $tool."
 done
@@ -274,8 +280,17 @@ fi
 
 step 5 'Vérifier et afficher le bilan'
 for unit in "${UNITS[@]}"; do
-    systemctl is-active --quiet "$unit" || fatal "Unité non active : $unit."
-    systemctl is-enabled --quiet "$unit" || fatal "Unité non activée au démarrage : $unit."
+    active_rc=0 boot_rc=0
+    active_state=$(systemctl is-active "$unit") || active_rc=$?
+    boot_state=$(systemctl is-enabled "$unit") || boot_rc=$?
+    active_color="$YELLOW" boot_color="$YELLOW"
+    if [[ "$active_state" == active ]]; then active_color="$GREEN"; fi
+    if [[ "$active_state" == failed ]]; then active_color="$STATE_RED"; fi
+    if [[ "$boot_state" == enabled ]]; then boot_color="$BLUE"; fi
+    printf '  %s  Démarrage %b[%s]%b  ·  État %b[%s]%b\n' \
+        "$unit" "$boot_color" "${boot_state:-inconnu}" "$RESET" "$active_color" "${active_state:-inconnu}" "$RESET"
+    (( active_rc == 0 )) || fatal "Unité non active : $unit."
+    (( boot_rc == 0 )) || fatal "Unité non activée au démarrage : $unit."
 done
 pool_info=$(virsh_system pool-info default)
 printf '%s\n' "$pool_info"
@@ -283,6 +298,7 @@ if $POOL_MANAGED; then
     grep -Eq '^State:[[:space:]]+running$' <<< "$pool_info" &&
         grep -Eq '^Autostart:[[:space:]]+yes$' <<< "$pool_info" ||
         fatal 'Le pool standard n’est pas actif ou son démarrage automatique n’est pas confirmé.'
+    status_line "$GREEN" 'Stockage actif' 'Pool default · démarrage automatique confirmé.'
 fi
 if $NETWORK; then
     net_info=$(virsh_system net-info default)
@@ -291,6 +307,7 @@ if $NETWORK; then
         grep -Eq '^Active:[[:space:]]+yes$' <<< "$net_info" &&
             grep -Eq '^Autostart:[[:space:]]+yes$' <<< "$net_info" ||
             fatal 'Le réseau NAT n’est pas actif ou son démarrage automatique n’est pas confirmé.'
+        status_line "$GREEN" 'NAT actif' 'Réseau default · démarrage automatique confirmé.'
     fi
 fi
 if [[ -c /dev/kvm ]] && virsh_system domcapabilities --virttype kvm >/dev/null; then
@@ -298,5 +315,5 @@ if [[ -c /dev/kvm ]] && virsh_system domcapabilities --virttype kvm >/dev/null; 
 else
     warn 'Capacités KVM non confirmées. Une VM de test reste à démarrer après diagnostic.'
 fi
-info "Sauvegarde : $SNAPSHOT"
+status_line "$VIOLET" 'Sauvegarde' "$SNAPSHOT"
 show_command virt-manager --connect "$URI"

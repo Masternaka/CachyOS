@@ -12,10 +12,11 @@ CONFIG_DIR=/etc/firewalld
 UFW_DIR=/etc/ufw
 REPORT=()
 
-GREEN='' YELLOW='' CYAN='' BOLD='' RESET='' RED='' ERROR_RESET=''
+GREEN='' YELLOW='' CYAN='' BLUE='' STATE_RED='' VIOLET='' BOLD='' RESET='' RED='' ERROR_RESET=''
 if [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
   if [[ -t 1 ]]; then
-    GREEN='\033[32m' YELLOW='\033[33m' CYAN='\033[1;36m' BOLD='\033[1m' RESET='\033[0m'
+    GREEN='\033[1;32m' YELLOW='\033[1;33m' CYAN='\033[1;36m' BLUE='\033[1;94m'
+    STATE_RED='\033[1;31m' VIOLET='\033[1;95m' BOLD='\033[1m' RESET='\033[0m'
   fi
   if [[ -t 2 ]]; then
     RED='\033[1;31m' ERROR_RESET='\033[0m'
@@ -23,22 +24,22 @@ if [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
 fi
 
 info()  { printf '  %b%-12s%b %s\n' "$BOLD" 'Info' "$RESET" "$*"; }
-ok()    { printf '  %b%-12s%b %s\n' "$GREEN" 'OK' "$RESET" "$*"; }
-warn()  { printf '  %b%-12s%b %s\n' "$YELLOW" 'Attention' "$RESET" "$*"; }
-error() { printf '  %b%-12s%b %s\n' "$RED" 'Erreur' "$ERROR_RESET" "$*" >&2; }
+ok()    { printf '  %b[OK]%b %s\n' "$GREEN" "$RESET" "$*"; }
+warn()  { printf '  %b[Attention]%b %s\n' "$YELLOW" "$RESET" "$*"; }
+error() { printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$*" >&2; }
 fatal() { error "$*"; exit 1; }
-dry()   { printf '  %b%-12s%b %s\n' "$CYAN" 'Simulation' "$RESET" "$*"; }
+dry()   { printf '  %b[Simulation]%b %s\n' "$CYAN" "$RESET" "$*"; }
 step()  { printf '\n%b── %s/4  %s%b\n' "$CYAN" "$1" "$2" "$RESET"; }
 
 print_report() {
   local status="$1" entry
   step 4 'Rapport final'
   for entry in ${REPORT[@]+"${REPORT[@]}"}; do info "$entry"; done
-  if [[ -n "$SESSION" ]]; then info "Sauvegarde : $SESSION"; fi
+  if [[ -n "$SESSION" ]]; then printf '  %b[Sauvegarde]%b %s\n' "$VIOLET" "$RESET" "$SESSION"; fi
   if (( status != 0 )); then
     error "Opération interrompue ou incomplète (code $status). Consultez les détails ci-dessus."
   elif $DRY_RUN; then
-    ok 'Simulation terminée.'
+    dry 'Simulation terminée.'
   else
     ok 'Opération terminée.'
   fi
@@ -123,16 +124,26 @@ detect_firewalls() {
   fi
 }
 
+state_badge() {
+  local value="$1" color="$YELLOW"
+  case "$value" in
+    active|actif) color="$GREEN" ;;
+    enabled) color="$BLUE" ;;
+    failed|masked|masked-runtime) color="$STATE_RED" ;;
+  esac
+  printf '%b[%s]%b' "$color" "$value" "$RESET"
+}
+
 describe_firewalls() {
   local unit name state
   for name in firewalld ufw; do
     if [[ "$name" == firewalld ]]; then unit="$FIREWALLD_UNIT"; else unit="$UFW_UNIT"; fi
     if has_property "$unit" 'LoadState=not-found'; then
-      state='unité absente'
+      state=$(state_badge 'unité absente')
     else
-      state="service=$(unit_value "$unit" ActiveState), démarrage=$(unit_value "$unit" UnitFileState)"
+      state="service $(state_badge "$(unit_value "$unit" ActiveState)") · démarrage $(state_badge "$(unit_value "$unit" UnitFileState)")"
     fi
-    if [[ "$name" == ufw ]]; then state="$state, règles UFW=$UFW_RULES"; fi
+    if [[ "$name" == ufw ]]; then state="$state · règles UFW $(state_badge "$UFW_RULES")"; fi
     printf '%s\n' "$name — $state"
   done
 }
@@ -167,7 +178,7 @@ select_disable_target() {
 preview_action() {
   local command
   printf -v command '%q ' "$@"
-  if $DRY_RUN; then dry "${command% }"; else info "${command% }"; fi
+  if $DRY_RUN; then dry "${command% }"; else printf '  %b[Action]%b %s\n' "$CYAN" "$RESET" "${command% }"; fi
 }
 
 perform_action() {
@@ -175,6 +186,7 @@ perform_action() {
   printf -v command '%q ' "$@"
   info "Exécution : ${command% }"
   if "$@"; then
+    ok "Commande réussie : ${command% }"
     REPORT+=("Commande réussie : ${command% }")
   else
     REPORT+=("Échec : ${command% }. Une modification partielle est possible.")
@@ -225,7 +237,7 @@ backup_before_disable() {
     if [[ "$TARGET_ACTIVE" == active ]]; then printf 'systemctl start %q\n' "$name.service"; fi
   } > "$undo"
   REPORT+=("Retour arrière du pare-feu : examiner puis lancer sudo bash \"$undo\".")
-  ok "Sauvegarde prête : $SESSION"
+  printf '  %b[Sauvegarde]%b %s\n' "$VIOLET" "$RESET" "$SESSION"
 }
 
 run_interactive() {
@@ -262,7 +274,7 @@ run_interactive() {
     command -v pacman >/dev/null || fatal 'Commande absente : pacman.'
     if pacman -Q "$gui" >/dev/null 2>&1; then
       REPORT+=("$gui est déjà installé.")
-      info "$gui est déjà installé."
+      printf '  %b[Déjà installé]%b %s\n' "$BLUE" "$RESET" "$gui"
       gui=''
     else
       pacman -Si "$gui" >/dev/null || fatal "Paquet introuvable dans les dépôts configurés : $gui."
@@ -310,6 +322,7 @@ run_interactive() {
     if [[ -n "$gui" ]]; then
       perform_action pacman -S --needed -- "$gui"
       pacman -Q "$gui" >/dev/null || fatal "Installation de $gui non confirmée."
+      ok "Interface installée et vérifiée : $gui"
       REPORT+=("Interface installée et vérifiée : $gui.")
     fi
     if [[ -n "$target" ]]; then

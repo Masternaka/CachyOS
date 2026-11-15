@@ -7,19 +7,20 @@ base=https://masternaka.github.io/master-archrepo
 server="$base/x86_64"
 config=/etc/pacman.conf
 
-CYAN='' BOLD='' GREEN='' YELLOW='' RED='' RESET='' ERROR_RESET=''
+CYAN='' BOLD='' GREEN='' YELLOW='' BLUE='' VIOLET='' RED='' RESET='' ERROR_RESET=''
 if [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
     if [[ -t 1 ]]; then
-        CYAN='\033[1;36m' BOLD='\033[1m' GREEN='\033[32m' YELLOW='\033[33m' RESET='\033[0m'
+        CYAN='\033[1;36m' BOLD='\033[1m' GREEN='\033[1;32m' YELLOW='\033[1;33m'
+        BLUE='\033[1;94m' VIOLET='\033[1;95m' RESET='\033[0m'
     fi
     if [[ -t 2 ]]; then RED='\033[1;31m' ERROR_RESET='\033[0m'; fi
 fi
 step() { printf '\n%b── %s/4  %s%b\n' "$CYAN" "$1" "$2" "$RESET"; }
 info() { printf '  %s\n' "$*"; }
-ok() { printf '  %bOK%b  %s\n' "$GREEN" "$RESET" "$*"; }
+status_line() { printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3"; }
 fail() {
-    printf '  %bErreur%b  %s\n' "$RED" "$ERROR_RESET" "$*" >&2
-    exit 1
+    printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$1" >&2
+    exit "${2:-1}"
 }
 
 if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
@@ -93,13 +94,14 @@ reported="$(awk -F: '
 gpg --homedir "$work" --batch --no-autostart --output "$work/keyring.gpg" --dearmor "$work/key.asc"
 gpgv --homedir "$work" --keyring "$work/keyring.gpg" "$work/$repo.db.sig" "$work/$repo.db" \
     || fail 'Signature de la base pacman invalide.'
-ok 'Empreinte de la clé et signature de la base vérifiées.'
+status_line "$GREEN" 'Vérifié' 'Empreinte de la clé et signature de la base.'
 
 step 3 'Configurer la confiance Pacman et le dépôt'
-printf '  %bAttention%b  La clé est ajoutée et signée localement dans le trousseau Pacman.\n' "$YELLOW" "$RESET"
+status_line "$YELLOW" 'Attention' 'La clé va être ajoutée et signée localement dans le trousseau Pacman.'
 cmp -s -- "$config" "$work/original" || fail "$config a changé. Relancez le script."
-pacman-key --add "$work/key.asc"
-pacman-key --lsign-key "$fingerprint"
+pacman-key --add "$work/key.asc" || fail 'Import de la clé dans le trousseau Pacman impossible.' "$?"
+pacman-key --lsign-key "$fingerprint" || fail 'Signature locale de la clé impossible.' "$?"
+status_line "$GREEN" 'Clé signée' "$fingerprint"
 backup=''
 if ! cmp -s -- "$candidate" "$work/original"; then
     backup="$(mktemp "${config}.before-master-archrepo.XXXXXXXX")"
@@ -109,11 +111,11 @@ if ! cmp -s -- "$candidate" "$work/original"; then
 fi
 
 step 4 'Afficher le bilan'
-ok 'Dépôt master-archrepo configuré.'
 if [[ -n "$backup" ]]; then
-    info "Sauvegarde de la configuration : $backup"
+    status_line "$GREEN" 'Dépôt ajouté' "$repo"
+    status_line "$VIOLET" 'Sauvegarde' "$backup"
 else
-    info "$config contenait déjà une section conforme."
+    status_line "$BLUE" 'Déjà conforme' "$config contient déjà la section [$repo]."
 fi
 info 'Pour installer les deux applications :'
 info 'sudo pacman -Syu master-archrepo/sambapilot master-archrepo/dotfilepilot'

@@ -1,7 +1,7 @@
 # Applications Flatpak personnelles
 
-Le script `06 - flatpak_install.sh` installe les 13 applications sélectionnées
-depuis Flathub, dans leur branche `stable` et pour l'architecture de l'hôte.
+Le script `06 - flatpak_install.sh` installe les applications choisies parmi
+les 13 du catalogue Flathub, sur la branche `stable` et pour l’architecture de l’hôte.
 Il se lance **sans sudo**, dans la session du compte concerné. Toutes les
 commandes portant sur une installation utilisent explicitement `--user`.
 
@@ -9,10 +9,12 @@ commandes portant sur une installation utilisent explicitement `--user`.
 bash "06 - flatpak_install.sh" --help
 bash "06 - flatpak_install.sh" --list
 bash "06 - flatpak_install.sh" --dry-run
+bash "06 - flatpak_install.sh" --dry-run --only 2,3
 ```
 
 L’aide et la liste fonctionnent sans Flatpak. Sur CachyOS, les prérequis
-natifs sont contrôlés avec Pacman et seuls les paquets manquants sont proposés.
+natifs sont contrôlés avec Pacman et seuls les paquets manquants nécessaires
+à la sélection sont proposés.
 
 | Fonction | Prérequis sur l’hôte |
 | --- | --- |
@@ -32,7 +34,14 @@ Distrobox et Podman figurent aussi parmi les 62 paquets du
 [script 05](package-install.md). Les applications de ce guide proviennent du
 dépôt personnel Flathub.
 
-## Simulation et confirmations
+## Sélection, simulation et confirmation
+
+Le menu affiche le catalogue numéroté. Saisir par exemple `2,3` pour Warehouse
+et Flatseal, appuyer sur Entrée pour tout sélectionner ou taper `q` pour
+quitter. Pour passer directement au plan, utiliser `--all` ou
+`--only 2,3`. `--only` accepte aussi des identifiants exacts séparés par des
+virgules. Une simulation sans terminal et sans sélection explicite examine
+le catalogue complet.
 
 La simulation consulte les bases Pacman locales. Si Flatpak est disponible,
 elle lit aussi l’architecture, les dépôts personnels et les applications
@@ -49,22 +58,31 @@ Pour une exécution souhaitée sur la machine Linux :
 
 ```bash
 bash "06 - flatpak_install.sh"
-# Variante : proposer aussi le nettoyage à la fin.
-bash "06 - flatpak_install.sh" --cleanup
+bash "06 - flatpak_install.sh" --all
+bash "06 - flatpak_install.sh" --only io.github.flattool.Warehouse,com.github.tchx84.Flatseal
 ```
 
 Après l’installation, `flatpak list --user --app` affiche les applications du
 compte. Lancer une application depuis le menu ou avec
 `flatpak run IDENTIFIANT`, en utilisant son identifiant dans la liste ci-dessous.
 
-Un terminal interactif est obligatoire. Si des prérequis natifs manquent,
-la première confirmation autorise `sudo pacman -Syu --needed` et l’inventaire
-des paquets. La mise à jour concerne tout le système et utilise les dépôts
-actifs affichés. Une seconde confirmation porte sur les opérations personnelles
-Flathub. Si elle est refusée, les paquets natifs installés restent présents.
-L'état local est relu après cette attente ; un changement de dépôts ou
-d'applications invalide l'aperçu. Les confirmations natives Flatpak sont conservées,
-sans `-y`, sans `--noninteractive` et sans tentative répétée automatiquement.
+Un terminal interactif est obligatoire pour appliquer. Un seul accord couvre
+le plan affiché, dont l’ajout éventuel de Flathub, les applications et leurs
+runtimes et extensions. Les installations et mises à jour utilisent
+`flatpak --assumeyes` pour répondre aux questions d’installation.
+
+Si des prérequis natifs manquent, l’accord couvre aussi
+`sudo pacman -Syu --needed --noconfirm`. La mise à jour concerne tout le
+système et utilise les dépôts actifs affichés. Pacman applique ses réponses
+par défaut. `sudo` peut demander le mot de passe.
+
+L’état local disponible est relu après la confirmation. Un changement détecté
+invalide l’aperçu. Si Flatpak vient d’être installé, le script vérifie le dépôt
+et l’origine des applications avant toute opération Flathub.
+
+Si les applications installées manquent dans le menu et qu’un avertissement
+mentionne `XDG_DATA_DIRS`, fermer puis rouvrir la session graphique. On peut
+aussi les lancer directement avec `flatpak run IDENTIFIANT`. [Exports Flatpak](https://docs.flatpak.org/en/latest/conventions.html#desktop-files)
 
 ## Dépôt et applications déjà installées
 
@@ -76,10 +94,10 @@ ne constitue pas un audit des clés locales ou des autres dépôts.
 
 Si le dépôt personnel manque, son ajout via
 `https://flathub.org/repo/flathub.flatpakrepo` a lieu seulement après confirmation.
-Les 13 références distantes exactes sont alors contrôlées avant la première
-installation. Une référence absente ou une erreur réseau bloque cette étape :
-le dépôt et le cache peuvent déjà avoir été créés, mais aucune application
-sélectionnée n'a encore été installée.
+Les références exactes de la sélection sont contrôlées avant la première
+installation. Une référence indisponible est comptée en échec et le script
+continue avec les références vérifiées. En cas de panne réseau générale,
+le dépôt ou le cache ont pu être créés avant l’échec.
 
 Pour les applications personnelles sélectionnées :
 

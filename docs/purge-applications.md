@@ -1,10 +1,30 @@
 # Désinstaller des applications et retirer leurs configurations
 
-`09 - purge_applications.sh` reçoit les paquets et configurations à retirer
-par arguments. Lance-le depuis le compte CachyOS concerné. La simulation est
-le mode par défaut et affiche les cibles sans sudo ni écriture.
+`09 - purge_applications.sh` détecte les applications de son catalogue au
+démarrage. Lance-le depuis le compte CachyOS concerné. La simulation est le
+mode par défaut et affiche les cibles sans sudo ni écriture.
 
-## Préparer la liste
+## Choisir les applications
+
+```bash
+bash "09 - purge_applications.sh"
+bash "09 - purge_applications.sh" --list
+```
+
+Sans argument, le script affiche l’état des paquets dans deux listes, Pacman
+et Flatpak, avant de demander une sélection pour chacune. Saisis des numéros
+séparés par des virgules, ou `tout` pour choisir toutes les entrées installées
+et sélectionnables de la liste en cours. Appuie sur Entrée pour passer une
+liste ou sur `q` pour annuler. `--list` affiche seulement l’inventaire.
+Une application Flatpak installée seulement au niveau système apparaît dans
+l’inventaire et reste hors de la sélection.
+
+Haruna figure dans les deux listes. Pour ajouter des applications au catalogue,
+modifie `NATIVE_CATALOGUE` (format `paquet` ou `paquet:chemin-de-configuration`)
+et `FLATPAK_CATALOGUE` (identifiants complets) au début du script. Le chemin de
+configuration natif est relatif à `XDG_CONFIG_HOME` (par défaut `~/.config`).
+
+## Fournir des cibles par arguments
 
 ```bash
 bash "09 - purge_applications.sh" --help
@@ -43,8 +63,9 @@ personnelles du même identifiant demandent un examen manuel.
 
 ## Appliquer et lire le rapport
 
-Fermer les applications visées. Après examen, relancer avec `--apply` à la
-place de `--dry-run` et taper `PURGER` lorsque le plan est correct.
+Fermer les applications visées. Après la simulation, relancer avec `--apply`
+et refaire la sélection, ou reprendre les mêmes cibles en arguments. Taper
+`PURGER` lorsque le plan affiché est correct.
 
 1. Le script crée un dossier privé `~/.cachyos-purge.*` et archive les fichiers
    existants de `/etc` déclarés par les paquets demandés. Les fichiers déclarés

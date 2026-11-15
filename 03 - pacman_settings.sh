@@ -43,14 +43,14 @@ HELP
 }
 
 # L'affichage va sur stderr pour réserver stdout à l'aperçu de pacman.conf.
-GREEN='' YELLOW='' RED='' CYAN='' BOLD='' RESET=''
+GREEN='' YELLOW='' RED='' CYAN='' BLUE='' VIOLET='' BOLD='' RESET=''
 if [[ -t 2 && -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
-    GREEN='\033[32m' YELLOW='\033[33m' RED='\033[1;31m'
-    CYAN='\033[1;36m' BOLD='\033[1m' RESET='\033[0m'
+    GREEN='\033[1;32m' YELLOW='\033[1;33m' RED='\033[1;31m'
+    CYAN='\033[1;36m' BLUE='\033[1;94m' VIOLET='\033[1;95m' BOLD='\033[1m' RESET='\033[0m'
 fi
 
 status_line() {
-    if ! $SILENT_MODE; then printf '  %b%-12s%b %s\n' "$1" "$RESET" "$2" "$3" >&2; fi
+    if ! $SILENT_MODE; then printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3" >&2; fi
 }
 detail() { status_line "$BOLD" "$1" "$2"; }
 ok() { status_line "$GREEN" 'OK' "$*"; }
@@ -59,7 +59,7 @@ warn() { status_line "$YELLOW" 'Attention' "$*"; }
 step() {
     if ! $SILENT_MODE; then printf '\n%b── %s/3  %s%b\n' "$CYAN" "$1" "$2" "$RESET" >&2; fi
 }
-error() { printf '  %b%-12s%b %s\n' "$RED" 'ERREUR' "$RESET" "$*" >&2; }
+error() { printf '  %b[Échec]%b %s\n' "$RED" "$RESET" "$*" >&2; }
 fatal() { error "$1"; exit "${2:-1}"; }
 
 # Fonction de journalisation : jamais sur stdout, jamais d'écriture en dry-run.
@@ -288,7 +288,7 @@ if $DRY_RUN; then
         warn 'La configuration candidate et les Include seront validés lors de l’application.'
     fi
     step 3 'Bilan de la simulation'
-    ok 'Simulation terminée.'
+    dry 'Simulation terminée.'
     exit 0
 fi
 
@@ -332,7 +332,7 @@ fi
 ok "Configuration préparée et validée. Valeur effective prévue : $EXPECTED_VALUE"
 if cmp -s -- "$CANDIDATE" "$SNAPSHOT"; then
     step 3 'Vérifier le résultat'
-    ok 'La configuration correspond déjà au résultat demandé.'
+    status_line "$BLUE" 'Inchangé' 'La configuration correspond déjà au résultat demandé.'
     exit 0
 fi
 
@@ -353,7 +353,7 @@ touch -- "$BACKUP_FILE"
 LATEST_CANDIDATE=$(mktemp "$BACKUP_DIR/.latest.XXXXXXXX")
 printf '%s\n' "${BACKUP_FILE##*/}" > "$LATEST_CANDIDATE"
 mv -f -- "$LATEST_CANDIDATE" "$BACKUP_DIR/.latest"
-log_message "$BOLD" 'Sauvegarde' "Sauvegarde avant modification : $BACKUP_FILE"
+log_message "$VIOLET" 'Sauvegarde' "Sauvegarde avant modification : $BACKUP_FILE"
 # Vérifier que personne n'a remplacé ou modifié la configuration entre-temps.
 [[ ! -L "$PACMAN_CONF" ]] && cmp -s -- "$PACMAN_CONF" "$SNAPSHOT" \
     || fatal 'Configuration modifiée pendant la préparation ; application annulée.'
@@ -363,5 +363,6 @@ mv -f -- "$CANDIDATE" "$PACMAN_CONF"
 validate_pacman_syntax "$PACMAN_CONF" || exit 1
 [[ "$EFFECTIVE_VALUE" == "$EXPECTED_VALUE" ]] || fatal 'Valeur effective différente après remplacement.'
 COMMIT_PENDING=false
-log_message "$GREEN" 'OK' "Modification validée. ParallelDownloads effectif : $EFFECTIVE_VALUE"
-detail 'Restauration' "sudo bash \"$0\" --restore \"$BACKUP_FILE\""
+if [[ "$MODE" == restore ]]; then result_label='Restauré'; else result_label='Appliqué'; fi
+log_message "$GREEN" "$result_label" "Modification validée. ParallelDownloads effectif : $EFFECTIVE_VALUE"
+status_line "$VIOLET" 'Retour arrière' "sudo bash \"$0\" --restore \"$BACKUP_FILE\""
