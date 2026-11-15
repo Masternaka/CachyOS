@@ -23,6 +23,9 @@ exhaustif d'installation ni une validation de la sécurité réseau.
 
 ## Vérification du dépôt
 
+Depuis la racine du dépôt, lancer la vérification sur ton ordinateur avant
+d’envoyer les changements sur GitHub.
+
 ```bash
 # Lecture seule : syntaxes Bash/Python/Zsh et cohérence des documents.
 python3 -B scripts/verifier_depot.py --statique
@@ -45,21 +48,13 @@ La commande `python3 -B scripts/verifier_depot.py` s'est terminée avec succès 
 syntaxes Bash/Python/Zsh, cohérence documentaire et 141 tests examinés, dont
 140 réussis et un ignoré. Le contrôle avec le vrai GNU Stow est ignoré parce
 que cet outil est absent ; les déploiements simulés restent couverts.
-La syntaxe YAML du workflow a aussi été analysée avec le Ruby déjà disponible,
-et `git diff --check` ne signale aucun défaut d'espacement.
+`git diff --check` n’a signalé aucun défaut d’espacement.
 
 Aucun logiciel n'a été installé et aucune configuration système ou personnelle
 n'a été appliquée. Les écritures des tests sont restées dans des dossiers
-temporaires isolés. Ces résultats locaux ne constituent pas une exécution CI
-ni une validation native sous CachyOS.
+temporaires isolés.
 
-## Automatisation préparée
-
-`.github/workflows/validation.yml` prépare les mêmes contrôles sur Ubuntu et macOS,
-avec permissions GitHub en lecture seule. Il ne publie et ne déploie aucun logiciel.
-Il n'installe aucun outil ou paquet manquant. Les résultats de chaque runner restent
-à examiner, notamment les tests ignorés. Le fichier du workflow est préparé dans le
-dépôt ; aucune exécution GitHub n'est déclenchée par sa simple présence locale.
+## Validation sur CachyOS
 
 Les tests simulés et les syntaxes ne prouvent pas une transaction Pacman réelle,
 une installation Flatpak, un déploiement avec le vrai Stow s'il est absent, ni le

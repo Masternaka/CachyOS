@@ -276,5 +276,6 @@ python3 -B scripts/verifier_depot.py
 ```
 
 Le diagnostic signale les outils absents, l'état des unités et les configurations
-à examiner. Il ne résout aucun conflit automatiquement. Les contrôles automatiques
-et leurs limites sont décrits dans le [guide de validation](docs/validation.md).
+à examiner. Il ne résout aucun conflit automatiquement. Lance la vérification
+du dépôt sur ton ordinateur avant d’envoyer les changements sur GitHub. Le
+[guide de validation](docs/validation.md) décrit les contrôles et leurs limites.
