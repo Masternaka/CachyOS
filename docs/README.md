@@ -19,6 +19,7 @@ autoriser. Les commandes des guides sont des exemples à exécuter volontairemen
 | [07 · QEMU et Virt-Manager](qemu.md) | Paquets, accès libvirt, KVM, réseau NAT et stockage |
 | [08 · master-archrepo](master-archrepo.md) | Empreinte OpenPGP, dépôt Pacman tiers et effets sur le script 05 |
 | [09 · Purge d’applications](purge-applications.md) | Sélection des cibles, simulation, sauvegarde et réinstallation |
+| [10 · Disques secondaires](disk-setup.md) | Identifier les volumes par UUID, appliquer leurs labels et attribuer leur contenu |
 | [Catalogue Dotfiles](../Dotfiles/README.md) | 17 paquets Stow, dont Ghostty et Fastfetch séparés |
 | [Configuration Kitty](../Dotfiles/kitty/.config/kitty/README.md) | Réglages actuels, thèmes, police et déploiement sur CachyOS/Niri |
 | [Configuration Fastfetch](../Dotfiles/fastfetch/.config/fastfetch/README.md) | Affichage système, personnalisation et déploiement manuel |
