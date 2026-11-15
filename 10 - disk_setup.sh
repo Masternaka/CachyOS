@@ -55,11 +55,15 @@ for tool in lsblk findmnt; do
     command -v "$tool" >/dev/null || fatal "Outil manquant : $tool."
 done
 
+mounted_device_numbers() {
+    findmnt --kernel --noheadings --raw -o MAJ:MIN
+}
+
 discover() {
     local inventory mounted wanted uuid device fs kind node found actual i
     inventory=$(lsblk -lpn -o UUID,PATH,FSTYPE,TYPE,MAJ:MIN) ||
         fatal 'Inventaire des volumes indisponible.'
-    mounted=$(findmnt --kernel --list --noheadings --raw -o MAJ:MIN) ||
+    mounted=$(mounted_device_numbers) ||
         fatal 'Table des montages indisponible.'
     DEVICES=() NODES=()
     ALL_OFFLINE=true
@@ -99,7 +103,7 @@ require_offline_device() {
        "$(blkid -p -s TYPE -o value -- "$device")" == ext4 &&
        "$(lsblk --nodeps --noheadings -o MAJ:MIN -- "$device")" == "$node" ]] ||
         fatal "L’identité de $device a changé."
-    mounted=$(findmnt --kernel --list --noheadings --raw -o MAJ:MIN) ||
+    mounted=$(mounted_device_numbers) ||
         fatal 'Table des montages indisponible.'
     [[ $'\n'"$mounted"$'\n' != *$'\n'"$node"$'\n'* ]] || fatal "$device est monté."
 }
