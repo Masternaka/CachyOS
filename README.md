@@ -11,8 +11,8 @@ d'exécution. Examiner leurs prérequis et leurs simulations avant de les appliq
 
 | Script | Fonction | Lancement réel |
 | --- | --- | --- |
-| `01 - systemd_services.sh` | Bluetooth, TRIM et nettoyage périodique du cache Pacman | Avec `sudo`, sans confirmation intégrée |
-| `02 - firewalld_settings.sh` | Pare-feu actif, zone et services explicitement choisis | Avec `sudo`, confirmation et retour arrière ciblé |
+| `01 - systemd_services.sh` | Bluetooth, serveur SSH, TRIM et nettoyage périodique du cache Pacman | Avec `sudo`, sans confirmation intégrée |
+| `02 - firewalld_settings.sh` | Détection UFW/firewalld, désactivation au choix, interface graphique ou réglage des règles firewalld | Simulation ou application avec `sudo` et confirmation |
 | `03 - pacman_settings.sh` | Téléchargements parallèles de Pacman | Avec `sudo`, saisie interactive ou options explicites |
 | `04 - install_zsh.sh` | Outils du terminal, configurations et GNU Stow | Sans `sudo`, confirmations par étape |
 | `08 - package_install.sh` | 62 paquets des dépôts officiels utilisés par CachyOS | Sans `sudo` conseillé ; élévation pour Pacman après confirmation |
@@ -74,8 +74,10 @@ configurations et propose seize modules : Zsh, Starship, Yazi, btop, Tealdeer, B
 Eza, Ripgrep, fd, Delta, Lazygit, Kitty, Foot et duf. Les deux terminaux sont configurés
 avec **JetBrainsMono Nerd Font**. `duf` ne nécessite aucun fichier à déployer.
 
+Depuis Fish, ouvrir le menu et prévisualiser ses choix avec Bash :
+
 ```bash
-bash "04 - install_zsh.sh" --dry-run
+bash "04 - install_zsh.sh" --interactive --dry-run
 bash "04 - install_zsh.sh" --dry-run --mode stow --only zsh,starship,kitty,foot
 ```
 
@@ -87,8 +89,9 @@ avec la confirmation habituelle ; aucun lien n'est créé dans ce mode.
 
 Après autorisation d'une exécution réelle, retirer `--dry-run`. Les paquets et
 la mise à jour système, fzf-tab éventuel, le déploiement, le cache Tealdeer et
-le changement facultatif du shell demandent des accords distincts. Une session
-de sauvegarde et son script de restauration sont affichés.
+le changement facultatif du shell demandent des accords distincts. Le shell
+de connexion détecté est conservé par défaut. Le rapport final affiche les
+actions effectuées et le script de restauration lorsqu’il est disponible.
 
 Les alias restent dans un fichier séparé chargé par `.zshrc`. Les réglages locaux
 `~/.zshrc.local.pre` et `~/.zshrc.local` sont conservés. Voir le [guide complet](docs/zsh.md)
@@ -103,9 +106,11 @@ logiciels avec `08 - package_install.sh` ne déploie pas leurs configurations.
 ## Services systemd
 
 Le script `01 - systemd_services.sh` active durablement et démarre
-`bluetooth.service`, `fstrim.timer` et `paccache.timer`. Il nécessite CachyOS/Arch,
-un gestionnaire systemd accessible et les paquets `bluez`, `util-linux` et
-`pacman-contrib`. Il n'installe aucun paquet. `bluez-utils` n'est pas requis.
+`bluetooth.service`, `sshd.service`, `fstrim.timer` et `paccache.timer`. Il nécessite
+CachyOS/Arch, un gestionnaire systemd accessible et les paquets `bluez`, `openssh`,
+`util-linux` et `pacman-contrib`. Il n'installe aucun paquet. `bluez-utils` n'est
+pas requis. Le serveur SSH écoute selon sa configuration et les règles du
+pare-feu restent inchangées.
 
 Examiner les actions sans modification, puis appliquer :
 
@@ -143,12 +148,20 @@ hôte non root, les branches d'application sont testées sur une copie temporair
 qui contourne uniquement la garde root ; cette garde est testée séparément sur
 le script original. Ces tests ne remplacent pas une validation sous CachyOS.
 
-## Pare-feu : sélection explicite des services
+## Pare-feu
 
-`02 - firewalld_settings.sh` configure un firewalld **déjà installé et actif**.
-Il n'installe plus de paquet, ne démarre pas de service et ne retire jamais UFW.
-Un UFW actif, activé au démarrage ou dans un état non pris en charge bloque le
-script. Une migration doit être préparée séparément depuis un accès local.
+Le menu de `02 - firewalld_settings.sh` affiche l’état d’UFW et de firewalld.
+Il permet de désactiver l’un des deux ou de conserver les deux états, puis
+d’installer Gufw ou Firewall Config. Le rapport final indique les actions et le
+chemin de la sauvegarde lorsqu’elle a été créée.
+
+```bash
+bash "02 - firewalld_settings.sh" --interactive --dry-run
+```
+
+Avec `--services`, le script règle les règles et la zone d’un firewalld **déjà
+installé et actif**. Un UFW actif, activé au démarrage ou dans un état
+non pris en charge bloque ce mode.
 
 ```bash
 bash "02 - firewalld_settings.sh" --dry-run --services ssh,samba
@@ -156,7 +169,7 @@ bash "02 - firewalld_settings.sh" --dry-run --services ssh,samba
 bash "02 - firewalld_settings.sh" --dry-run --zone home --services ssh
 ```
 
-La sélection `--services` est obligatoire : `ssh`, `samba`, `ssh,samba` ou `none`.
+Les choix de `--services` sont `ssh`, `samba`, `ssh,samba` et `none`.
 `none` n'ajoute aucun service ; les règles existantes sont conservées. Le script
 ajoute les règles manquantes dans les configurations active et permanente sans
 rechargement global, puis définit la zone par défaut. Les serveurs SSH et Samba

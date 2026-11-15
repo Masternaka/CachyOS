@@ -11,7 +11,7 @@ import tempfile
 import unittest
 
 SCRIPT = Path(__file__).resolve().parents[1] / '01 - systemd_services.sh'
-UNITS = ['bluetooth.service', 'fstrim.timer', 'paccache.timer']
+UNITS = ['bluetooth.service', 'fstrim.timer', 'paccache.timer', 'sshd.service']
 FAKE = r'''#!/usr/bin/env python3
 import json, os, sys, tempfile
 from pathlib import Path
@@ -117,7 +117,7 @@ class ServicesTests(unittest.TestCase):
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(['systemctl', 'start', UNITS[0]], self.actions())
-        self.assertEqual(len(self.actions()), 3)
+        self.assertEqual(len(self.actions()), len(UNITS))
 
     def test_already_ready_is_noop(self):
         for state in self.states.values():
@@ -130,14 +130,14 @@ class ServicesTests(unittest.TestCase):
         self.config['action_failure'] = UNITS[0]
         result = self.run_script()
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(len(self.actions()), 3)
+        self.assertEqual(len(self.actions()), len(UNITS))
         self.assertIn('objectif non atteint', result.stderr)
         self.assertNotIn('Terminé — toutes', result.stdout)
 
     def test_missing_package_only_blocks_its_unit(self):
         self.config['missing_pkg'] = 'bluez'
         self.assertEqual(self.run_script().returncode, 1)
-        self.assertEqual(len(self.actions()), 2)
+        self.assertEqual(len(self.actions()), len(UNITS) - 1)
         self.assertTrue(all(call[-1] != UNITS[0] for call in self.actions()))
 
     def test_masked_missing_unstable_and_read_errors(self):

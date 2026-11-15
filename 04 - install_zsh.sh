@@ -6,9 +6,11 @@ set -Eeuo pipefail
 # Sélection et aide : aucune modification avant les confirmations dédiées
 # =============================================================================
 DRY_RUN=false
+INTERACTIVE=false
 USE_THEME=true
 REPLACE_COMMANDS=false
 MODE=copy
+MODE_GIVEN=false
 ONLY=''
 RESTORE=''
 FZF_TAB_URL='https://github.com/Aloxaf/fzf-tab.git'
@@ -20,15 +22,57 @@ SHELLS_FILE='/etc/shells'
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 DEPLOY_ENGINE="$SCRIPT_DIR/scripts/zsh_deploy.py"
 ALL_MODULES=(zsh starship yazi btop tealdeer bat fzf zoxide eza ripgrep fd delta lazygit kitty foot duf)
+REPORT=()
+SESSION=''
+PHASE=''
 
-info() { printf '[INFO] %s\n' "$*" >&2; }
-warn() { printf '[!] %s\n' "$*" >&2; }
-fatal() { printf 'ERREUR : %s\n' "$1" >&2; exit "${2:-1}"; }
+GREEN='' YELLOW='' RED='' CYAN='' BOLD='' RESET=''
+if [[ -t 2 && -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
+    GREEN='\033[32m' YELLOW='\033[33m' RED='\033[1;31m'
+    CYAN='\033[1;36m' BOLD='\033[1m' RESET='\033[0m'
+fi
+
+status_line() { printf '  %b%-12s%b %s\n' "$1" "$RESET" "$2" "$3" >&2; }
+info() { status_line "$BOLD" 'Info' "$*"; }
+ok() { status_line "$GREEN" 'OK' "$*"; }
+warn() { status_line "$YELLOW" 'Attention' "$*"; }
+dry() { status_line "$CYAN" 'Simulation' "$*"; }
+error() { status_line "$RED" 'Erreur' "$*"; }
+fatal() { error "$1"; exit "${2:-1}"; }
+step() {
+    PHASE="$2"
+    printf '\n%b── %s/6  %s%b\n' "$CYAN" "$1" "$2" "$RESET" >&2
+}
+print_report() {
+    local status="$1" entry
+    (( BASH_SUBSHELL == 0 )) || return 0
+    printf '\n%b── Rapport final%b\n' "$CYAN" "$RESET" >&2
+    for entry in ${REPORT[@]+"${REPORT[@]}"}; do info "$entry"; done
+    if [[ -n "$SESSION" ]]; then
+        info "Sauvegarde : $SESSION"
+        info "Retour arrière : bash \"$SESSION/restaurer.sh\""
+    fi
+    if (( status != 0 )); then
+        error "Arrêt à l’étape « $PHASE » (code $status). Consultez les détails ci-dessus."
+    elif $DRY_RUN; then
+        ok 'Simulation terminée. Aucune modification appliquée.'
+    else
+        ok 'Opération terminée.'
+    fi
+}
 confirm() {
     local reply=''
     printf '%s [o/N] ' "$1" >&2
-    read -r reply || return 1
+    IFS= read -r reply || return 1
     [[ "$reply" == o || "$reply" == O || "$reply" == oui || "$reply" == OUI ]]
+}
+read_choice() {
+    printf '%b%s%b ' "$BOLD" "$1" "$RESET" >&2
+    IFS= read -r CHOICE || fatal 'Saisie interrompue avant application.'
+    if [[ "$CHOICE" == q || "$CHOICE" == Q ]]; then
+        REPORT+=('Annulé depuis le menu. Aucune modification appliquée.')
+        exit 0
+    fi
 }
 show_help() {
     cat <<'HELP'
@@ -36,7 +80,10 @@ Usage : bash "04 - install_zsh.sh" [options]
 
 Installe les outils choisis puis prépare leur intégration depuis Dotfiles.
 Utilisateur normal uniquement. Kitty et Foot utilisent JetBrainsMono Nerd Font.
+Depuis Fish, lancer avec bash comme dans les exemples. Fish peut rester
+le shell de connexion.
 
+  --interactive        Ouvre le menu de sélection (aussi sans argument dans un terminal)
   --dry-run, -n        Plan sans écriture, téléchargement ou installation
   --mode copy|stow     Copies (défaut) ou liens GNU Stow
   --only LISTE         Modules séparés par virgules ; défaut : les 16 modules
@@ -50,7 +97,7 @@ Modules : zsh,starship,yazi,btop,tealdeer,bat,fzf,zoxide,eza,ripgrep,fd,delta,
           lazygit,kitty,foot,duf
 duf affiche l'espace disque sans configuration à déployer ni alias pour df.
 Exemples :
-  bash "04 - install_zsh.sh" --dry-run
+  bash "04 - install_zsh.sh" --interactive --dry-run
   bash "04 - install_zsh.sh" --mode stow --only zsh,starship,kitty,foot
 
 Accords distincts : paquets/mise à jour système, téléchargement éventuel fzf-tab,
@@ -59,27 +106,41 @@ GNU Stow est prévu dans les deux modes pour pouvoir être utilisé ultérieurem
 Aucun paquet manquant n'est installé sans confirmation ni --noconfirm.
 HELP
 }
+if (( $# == 0 )) && [[ -t 0 ]]; then INTERACTIVE=true; fi
 while (( $# > 0 )); do
     case "$1" in
+        --interactive) INTERACTIVE=true; shift ;;
         --dry-run|-n) DRY_RUN=true; shift ;;
         --no-theme) USE_THEME=false; shift ;;
         --replace-commands) REPLACE_COMMANDS=true; shift ;;
         --extras) shift ;;
         --mode|--only|--restore)
             (( $# >= 2 )) && [[ -n "$2" && "$2" != -* ]] || fatal "Valeur manquante pour $1" 2
-            case "$1" in --mode) MODE="$2" ;; --only) ONLY="$2" ;; --restore) RESTORE="$2" ;; esac
+            case "$1" in --mode) MODE="$2"; MODE_GIVEN=true ;; --only) ONLY="$2" ;; --restore) RESTORE="$2" ;; esac
             shift 2 ;;
         --help|-h) show_help; exit 0 ;;
         *) fatal "Argument inconnu : $1" 2 ;;
     esac
 done
 [[ "$MODE" == copy || "$MODE" == stow ]] || fatal 'Mode attendu : copy ou stow.' 2
+if [[ -n "$RESTORE" ]] && $INTERACTIVE; then fatal '--restore ouvre sa propre confirmation.' 2; fi
+trap 'print_report "$?"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+printf '%bCachyOS · Outils et configuration du terminal%b\n' "$BOLD" "$RESET" >&2
+if $DRY_RUN; then dry 'Aucune modification ne sera appliquée.'; fi
+step 1 'Vérifier les prérequis'
 [[ $EUID -ne 0 ]] || fatal 'Ne lancez pas ce script avec sudo/root : il configure votre compte personnel.'
 command -v python3 >/dev/null 2>&1 || fatal 'Python 3 est requis pour préparer les sauvegardes ; aucun outil installé automatiquement.'
 [[ -r "$DEPLOY_ENGINE" ]] || fatal "Moteur introuvable : $DEPLOY_ENGINE"
 if [[ -n "$RESTORE" ]]; then
     $DRY_RUN && fatal 'Pour restaurer, examiner le journal de la session puis utiliser --restore sans --dry-run.' 2
-    exec python3 -B "$DEPLOY_ENGINE" restore "$RESTORE"
+    PHASE='Restaurer la session'
+    info "Session à restaurer : $RESTORE"
+    python3 -B "$DEPLOY_ENGINE" restore "$RESTORE"
+    REPORT+=("Restauration terminée : $RESTORE")
+    exit 0
 fi
 
 # =============================================================================
@@ -113,6 +174,32 @@ PASSWD_ENTRY=$(getent passwd "$USER_NAME") || fatal 'Impossible de lire le compt
 IFS=: read -r ACCOUNT_NAME _ ACCOUNT_ID _ _ ACCOUNT_HOME OLD_SHELL <<< "$PASSWD_ENTRY"
 [[ "$ACCOUNT_NAME" == "$USER_NAME" && "$ACCOUNT_ID" == "$USER_ID" && "$ACCOUNT_HOME" == "$HOME" && "$OLD_SHELL" == /* ]] \
     || fatal 'HOME ou identité ne correspond pas au compte courant.'
+ok "Compte : $USER_NAME · Shell de connexion : $OLD_SHELL"
+for shell_name in fish zsh; do
+    if shell_path=$(type -P "$shell_name"); then
+        info "$shell_name disponible : $shell_path"
+    else
+        info "$shell_name introuvable dans le PATH."
+    fi
+done
+
+step 2 'Choisir les modules et préparer le plan'
+if $INTERACTIVE; then
+    info 'Entrée garde le choix par défaut. Tapez q pour quitter.'
+    if ! $MODE_GIVEN; then
+        read_choice 'Déploiement [1 = copies, 2 = liens GNU Stow, défaut 1] :'
+        case "$CHOICE" in
+            ''|1) MODE=copy ;;
+            2) MODE=stow ;;
+            *) fatal 'Choisissez 1 pour les copies ou 2 pour Stow.' 2 ;;
+        esac
+    fi
+    if [[ -z "$ONLY" ]]; then
+        info "Modules disponibles : ${ALL_MODULES[*]}"
+        read_choice 'Modules séparés par des virgules [Entrée = tous] :'
+        ONLY="$CHOICE"
+    fi
+fi
 if [[ -n "$ONLY" ]]; then
     [[ "$ONLY" != *, && "$ONLY" != ,* && "$ONLY" != *,,* ]] || fatal 'Liste de modules mal formée.' 2
     IFS=, read -r -a REQUESTED <<< "$ONLY"
@@ -122,6 +209,24 @@ fi
 SELECTED=()
 SELECTION=''
 contains() { local needle="$1" item; shift; for item in "$@"; do [[ "$item" == "$needle" ]] && return 0; done; return 1; }
+if $INTERACTIVE; then
+    if $USE_THEME && contains starship "${REQUESTED[@]}"; then
+        read_choice 'Thème Starship [1 = déployer, 2 = garder la sélection actuelle, défaut 1] :'
+        case "$CHOICE" in
+            ''|1) ;;
+            2) USE_THEME=false ;;
+            *) fatal 'Choisissez 1 ou 2 pour le thème.' 2 ;;
+        esac
+    fi
+    if ! $REPLACE_COMMANDS && contains zsh "${REQUESTED[@]}"; then
+        read_choice 'Alias Zsh [1 = raccourcis distincts, 2 = remplacer ls/cat/cp/mv/rm…, défaut 1] :'
+        case "$CHOICE" in
+            ''|1) ;;
+            2) REPLACE_COMMANDS=true ;;
+            *) fatal 'Choisissez 1 ou 2 pour les alias.' 2 ;;
+        esac
+    fi
+fi
 for module in "${REQUESTED[@]}"; do
     contains "$module" "${ALL_MODULES[@]}" || fatal "Module inconnu : $module" 2
     if [[ "$module" == starship ]] && ! $USE_THEME; then continue; fi
@@ -131,6 +236,8 @@ for module in "${REQUESTED[@]}"; do
     SELECTION+="${SELECTION:+,}$module"
 done
 [[ -n "$SELECTION" ]] || fatal 'Aucun module sélectionné.' 2
+REPORT+=("Compte : $USER_NAME · Shell initial : $OLD_SHELL" "Mode : $MODE · Modules : $SELECTION")
+info "Mode : $MODE · Modules : $SELECTION"
 DEPLOY_ARGS=(--repo "$SCRIPT_DIR" --home "$HOME" --mode "$MODE" --packages "$SELECTION"
              --replace-commands "$REPLACE_COMMANDS" --use-theme "$USE_THEME")
 # Premier contrôle sans écriture, avant de proposer une installation de paquets.
@@ -139,6 +246,7 @@ PLAN_TOKEN=$(python3 -B "$DEPLOY_ENGINE" preview "${DEPLOY_ARGS[@]}") || fatal '
 # =============================================================================
 # Paquets des modules sélectionnés : confirmation, puis confirmation Pacman
 # =============================================================================
+step 3 'Vérifier les paquets et fzf-tab'
 # Préparer aussi Stow en mode copie, sans créer de liens dans ce mode.
 PKGS=(git stow)
 add_package() { if ! contains "$1" "${PKGS[@]}"; then PKGS+=("$1"); fi; }
@@ -171,26 +279,41 @@ for pkg in "${PKGS[@]}"; do
         MISSING+=("$pkg")
     fi
 done
-info "Compte : $USER_NAME ; mode : $MODE ; modules : $SELECTION"
 if (( ${#MISSING[@]} > 0 )); then
     warn "Installation ET mise à jour système proposées : ${MISSING[*]}"
     printf ' sudo pacman -Syu --needed'; printf ' %q' "${MISSING[@]}"; printf '\n'
     warn 'Les paquets et mises à jour ne sont pas annulés par la restauration des configurations.'
+else
+    ok 'Tous les paquets requis sont déjà installés.'
 fi
 if contains zsh "${SELECTED[@]}" && [[ -z "$FZF_TAB_PACKAGE" && ! -d "$FZF_TAB_DIR" ]]; then
     info "fzf-tab proposé séparément : $FZF_TAB_URL ; $FZF_TAB_VERSION ; commit $FZF_TAB_COMMIT ; destination $FZF_TAB_DIR"
+    if $DRY_RUN; then REPORT+=("Téléchargement fzf-tab $FZF_TAB_VERSION à confirmer."); fi
 fi
 if $DRY_RUN; then
-    info '[DRY-RUN] Les polices Kitty/Foot sélectionnées seront JetBrainsMono Nerd Font.'
-    info '[DRY-RUN] Cache tldr et shell : propositions séparées, aucune action.'
-    info '[DRY-RUN] Aucun fichier, lien, journal, cache ou téléchargement créé.'
+    if (( ${#MISSING[@]} > 0 )); then
+        REPORT+=("Paquets à installer avec la mise à jour système : ${MISSING[*]}")
+    else
+        REPORT+=('Paquets requis déjà présents.')
+    fi
+    if contains tealdeer "${SELECTED[@]}"; then dry 'Cache Tealdeer proposé après le déploiement.'; fi
+    if contains zsh "${SELECTED[@]}"; then
+        dry "Shell de connexion : $OLD_SHELL. Le passage à Zsh fait l’objet d’un choix après le déploiement."
+    fi
     exit 0
 fi
 if (( ${#MISSING[@]} > 0 )); then
     command -v sudo >/dev/null 2>&1 || fatal 'sudo est requis pour installer les paquets manquants.'
-    confirm 'Autorisez-vous ces paquets et la mise à jour complète du système ?' || fatal 'Installation refusée ; configurations conservées.'
-    sudo pacman -Syu --needed "${MISSING[@]}"
+    if ! confirm 'Autorisez-vous ces paquets et la mise à jour complète du système ?'; then
+        REPORT+=('Installation des paquets refusée ou confirmation absente.')
+        fatal 'Installation refusée ; configurations conservées.'
+    fi
+    REPORT+=("Transaction Pacman demandée : ${MISSING[*]}")
+    sudo pacman -Syu --needed "${MISSING[@]}" || fatal 'Transaction Pacman interrompue ou échouée. Vérifiez son résultat avant de relancer.' "$?"
     for pkg in "${PKGS[@]}"; do pacman -Q "$pkg" >/dev/null || fatal "Paquet toujours absent : $pkg"; done
+    REPORT+=('Transaction Pacman terminée, présence des paquets vérifiée.')
+else
+    REPORT+=('Paquets requis déjà présents.')
 fi
 for module in "${SELECTED[@]}"; do
     case "$module" in tealdeer) binary=tldr ;; ripgrep) binary=rg ;; *) binary="$module" ;; esac
@@ -241,14 +364,17 @@ if [[ -n "$FZF_TAB_PACKAGE" ]]; then
     done <<< "$package_files"
     [[ -n "$FZF_TAB_SOURCE" ]] || fatal "Le paquet $FZF_TAB_PACKAGE ne fournit pas de fzf-tab.plugin.zsh lisible."
     zsh -f -n "$FZF_TAB_SOURCE"
+    REPORT+=("fzf-tab vérifié depuis le paquet $FZF_TAB_PACKAGE.")
 else
     command -v git >/dev/null 2>&1 || fatal 'Git est requis pour la copie locale de fzf-tab.'
     if [[ ! -d "$FZF_TAB_DIR" ]]; then
         confirm "Autorisez-vous le téléchargement de fzf-tab $FZF_TAB_VERSION depuis GitHub vers $FZF_TAB_DIR ?" \
             || fatal 'Téléchargement refusé ; aucune configuration remplacée.'
         download_fzf_tab
+        REPORT+=("Copie locale de fzf-tab $FZF_TAB_VERSION vérifiée : $FZF_TAB_DIR")
     else
         verify_fzf_tab "$FZF_TAB_DIR"
+        REPORT+=("Copie locale existante de fzf-tab vérifiée : $FZF_TAB_DIR")
     fi
     FZF_TAB_SOURCE="$FZF_TAB_DIR/fzf-tab.plugin.zsh"
 fi
@@ -257,49 +383,67 @@ fi
 # =============================================================================
 # Configurations : plan revalidé, sauvegarde et application copy/Stow
 # =============================================================================
+step 4 'Sauvegarder et déployer les configurations'
 DEPLOY_ARGS+=(--fzf-source "$FZF_TAB_SOURCE")
 PLAN_TOKEN=$(python3 -B "$DEPLOY_ENGINE" preview "${DEPLOY_ARGS[@]}") || fatal 'Préparation finale refusée.'
 confirm 'Autorisez-vous la sauvegarde puis le déploiement des fichiers annoncés ?' || fatal 'Déploiement refusé ; configurations conservées.'
 SESSION=$(python3 -B "$DEPLOY_ENGINE" deploy "${DEPLOY_ARGS[@]}" --expected "$PLAN_TOKEN" --state-root "$BACKUP_ROOT") \
     || fatal 'Déploiement échoué ; consulter les messages et le dossier de sauvegarde affiché.'
-info "Retour arrière : bash \"$SESSION/restaurer.sh\""
+REPORT+=("Configurations déployées et vérifiées en mode $MODE.")
+ok 'Déploiement vérifié.'
 
 # =============================================================================
 # Vérification des intégrations, de la police, puis actions facultatives
 # =============================================================================
+step 5 'Vérifier les intégrations et proposer le cache Tealdeer'
 if contains delta "${SELECTED[@]}"; then
     GIT_PAGER_EFFECTIVE=$(git config --global --get core.pager) || fatal "Pager Git non confirmé ; voir $SESSION/restaurer.sh"
     [[ "$GIT_PAGER_EFFECTIVE" == delta ]] || fatal "Un réglage prioritaire empêche l'activation de Delta : $GIT_PAGER_EFFECTIVE. Voir $SESSION/restaurer.sh"
+    REPORT+=('Pager Git vérifié : Delta.')
 fi
 if contains kitty "${SELECTED[@]}" || contains foot "${SELECTED[@]}"; then
     FONT_MATCH=$(fc-match -f '%{family}\n' 'JetBrainsMono Nerd Font') || fatal 'Lecture Fontconfig impossible ; configurations sauvegardées.'
     [[ "$FONT_MATCH" == *JetBrainsMono* && ( "$FONT_MATCH" == *Nerd* || "$FONT_MATCH" == *NF* ) ]] \
         || fatal "Police Nerd Font non confirmée par Fontconfig : $FONT_MATCH. Voir $SESSION/restaurer.sh"
     info "Police trouvée : $FONT_MATCH. Rouvrir Kitty et Foot pour utiliser la nouvelle configuration."
+    REPORT+=("Police vérifiée : $FONT_MATCH")
 fi
 if contains tealdeer "${SELECTED[@]}"; then
     info 'Tealdeer : tldr --update télécharge le cache des exemples et peut mettre à jour un cache existant.'
     if confirm 'Autorisez-vous le téléchargement du cache Tealdeer maintenant ?'; then
         tldr --update || fatal "Échec du cache Tealdeer ; configurations conservées. Retour arrière : $SESSION/restaurer.sh"
+        REPORT+=('Cache Tealdeer mis à jour.')
     else
         info 'Cache Tealdeer conservé ; les exemples peuvent être indisponibles tant que le cache est absent.'
+        REPORT+=('Mise à jour du cache Tealdeer passée.')
     fi
 fi
+step 6 'Choisir le shell de connexion'
 if contains zsh "${SELECTED[@]}"; then
-    ZSH_PATH=$(command -v zsh)
-    if [[ "$OLD_SHELL" != "$ZSH_PATH" ]]; then
-        info "Changement facultatif du shell : $OLD_SHELL -> $ZSH_PATH"
-        if confirm 'Autorisez-vous le changement du shell par défaut avec chsh ?'; then
+    ZSH_PATH=$(type -P zsh) || fatal 'Exécutable Zsh introuvable.'
+    if [[ "$OLD_SHELL" == "$ZSH_PATH" || ( "${OLD_SHELL##*/}" == zsh && "$OLD_SHELL" -ef "$ZSH_PATH" ) ]]; then
+        ok "Zsh est déjà le shell de connexion : $OLD_SHELL"
+        REPORT+=("Shell de connexion conservé : $OLD_SHELL")
+    else
+        info "Shell actuel : $OLD_SHELL · Remplacement proposé : $ZSH_PATH"
+        printf '  Commande     chsh -s %q\n' "$ZSH_PATH" >&2
+        info 'Le changement s’applique aux prochaines connexions. Le terminal déjà ouvert continue avec son shell.'
+        if confirm 'Remplacer le shell de connexion actuel par Zsh avec chsh ?'; then
             command -v chsh >/dev/null 2>&1 || fatal "chsh absent. Voir $SESSION/restaurer.sh"
             grep -Fx -- "$ZSH_PATH" "$SHELLS_FILE" >/dev/null || fatal "Zsh non déclaré dans $SHELLS_FILE ; shell conservé."
             CURRENT_ENTRY=$(getent passwd "$USER_NAME") || fatal 'Impossible de relire le compte avant chsh.'
             [[ "${CURRENT_ENTRY##*:}" == "$OLD_SHELL" ]] || fatal 'Shell modifié depuis le début ; changement annulé.'
             python3 -B "$DEPLOY_ENGINE" mark-shell "$SESSION" --user "$USER_NAME" --old "$OLD_SHELL" --new "$ZSH_PATH"
+            REPORT+=("Changement de shell demandé : $OLD_SHELL → $ZSH_PATH")
             chsh -s "$ZSH_PATH" || fatal "Échec de chsh ; configuration conservée. Voir $SESSION/restaurer.sh"
             NEW_ENTRY=$(getent passwd "$USER_NAME") || fatal 'Impossible de vérifier le shell après chsh.'
             [[ "${NEW_ENTRY##*:}" == "$ZSH_PATH" ]] || fatal "Changement de shell non confirmé. Voir $SESSION/restaurer.sh"
+            REPORT+=("Shell de connexion changé et vérifié : $OLD_SHELL → $ZSH_PATH")
+        else
+            REPORT+=("Shell de connexion conservé : $OLD_SHELL")
         fi
     fi
+else
+    info 'Module Zsh absent de la sélection.'
+    REPORT+=("Shell de connexion conservé : $OLD_SHELL")
 fi
-info 'Configuration terminée : fichiers vérifiés, intégrations préparées et commandes sélectionnées présentes.'
-info "Les logiciels réels ne sont pas lancés pour un test graphique. Retour arrière : bash \"$SESSION/restaurer.sh\""

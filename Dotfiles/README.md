@@ -36,7 +36,7 @@ Dotfiles/
 | Paquet Stow | Réglages et activation |
 |---|---|
 | `zsh` | Suggestions, complétions, historique ↑/↓, alias séparés, FZF, Zoxide, Yazi `y` et Starship lorsque les outils sont présents. Aucun gestionnaire de plugins. |
-| `starship` | Invite compacte Catppuccin Mocha. La même source est utilisée en copie ou avec Stow. |
+| `starship` | Invite Catppuccin Powerline (Mocha) avec dossier, Git, horloge et durée des commandes. La même source est utilisée en copie ou avec Stow. |
 | `yazi` | Tri naturel, dossiers en premier, trois panneaux, touches `g h`, `g c` et `g /`, couleurs Mocha intégrées sans flavor externe. |
 | `btop` | CPU/RAM/réseau/processus, Celsius, rafraîchissement de 1,5 s et arrière-plan du terminal. Thème intégré Default, sans téléchargement. |
 | `tealdeer` | Exemples lisibles et pager ; mise à jour automatique du cache désactivée. `tldr --update` reste une action séparée à autoriser. |

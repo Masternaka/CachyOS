@@ -42,19 +42,35 @@ Exemples :
 HELP
 }
 
-info() { if ! $SILENT_MODE; then printf '%s\n' "$*" >&2; fi; }
-error() { printf 'ERREUR : %s\n' "$*" >&2; }
+# L'affichage va sur stderr pour réserver stdout à l'aperçu de pacman.conf.
+GREEN='' YELLOW='' RED='' CYAN='' BOLD='' RESET=''
+if [[ -t 2 && -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
+    GREEN='\033[32m' YELLOW='\033[33m' RED='\033[1;31m'
+    CYAN='\033[1;36m' BOLD='\033[1m' RESET='\033[0m'
+fi
+
+status_line() {
+    if ! $SILENT_MODE; then printf '  %b%-12s%b %s\n' "$1" "$RESET" "$2" "$3" >&2; fi
+}
+detail() { status_line "$BOLD" "$1" "$2"; }
+ok() { status_line "$GREEN" 'OK' "$*"; }
+dry() { status_line "$CYAN" 'Simulation' "$*"; }
+warn() { status_line "$YELLOW" 'Attention' "$*"; }
+step() {
+    if ! $SILENT_MODE; then printf '\n%b── %s/3  %s%b\n' "$CYAN" "$1" "$2" "$RESET" >&2; fi
+}
+error() { printf '  %b%-12s%b %s\n' "$RED" 'ERREUR' "$RESET" "$*" >&2; }
 fatal() { error "$1"; exit "${2:-1}"; }
 
 # Fonction de journalisation : jamais sur stdout, jamais d'écriture en dry-run.
 # Un défaut du journal est signalé sans interrompre une transaction déjà validée.
 log_message() {
     local message
-    message="$(date '+%Y-%m-%d %H:%M:%S') : $1"
-    info "$message"
+    message="$(date '+%Y-%m-%d %H:%M:%S') : $3"
+    status_line "$1" "$2" "$3"
     if ! $DRY_RUN; then
         if [[ -L "$LOG_FILE" || ( -e "$LOG_FILE" && ! -f "$LOG_FILE" ) || "$LOG_FILE" -ef "$PACMAN_CONF" ]]; then
-            error "Journal inaccessible ou destination refusée : $LOG_FILE. $1"
+            error "Journal inaccessible ou destination refusée : $LOG_FILE. $3"
             return 0
         fi
         if ! printf '%s\n' "$message" >> "$LOG_FILE"; then
@@ -114,6 +130,9 @@ normalize_value() {
 if [[ "$MODE" == value ]]; then normalize_value; fi
 
 # Vérifier les permissions et les dépendances avant de modifier quoi que ce soit.
+if ! $SILENT_MODE; then printf '%bCachyOS · Réglages de Pacman%b\n' "$BOLD" "$RESET" >&2; fi
+if $DRY_RUN; then dry 'Aucune modification ne sera appliquée.'; fi
+step 1 'Vérifier les prérequis'
 if ! $DRY_RUN && [[ $EUID -ne 0 ]]; then
     fatal 'Exécutez avec sudo pour appliquer ; utilisez --dry-run pour examiner.'
 fi
@@ -127,6 +146,13 @@ if ! $DRY_RUN; then
 fi
 [[ -f "$PACMAN_CONF" && ! -L "$PACMAN_CONF" && -r "$PACMAN_CONF" ]] \
     || fatal "Configuration absente, illisible ou lien symbolique : $PACMAN_CONF"
+ok "Configuration lisible : $PACMAN_CONF"
+
+if [[ "$MODE" == restore ]]; then
+    step 2 'Préparer la restauration'
+else
+    step 2 'Préparer le réglage de ParallelDownloads'
+fi
 
 # Fonction de détection automatique : estimation matérielle, pas un optimum mesuré.
 detect_optimal_value() {
@@ -145,7 +171,7 @@ detect_optimal_value() {
     fi
     # La RAM totale en Gio limite cette estimation sur les petites machines.
     if (( mem_gb < 4 && VALUE > 3 )); then VALUE=3; fi
-    info "Estimation : $VALUE téléchargements (CPU : $cpu_count, RAM totale : ${mem_gb} Gio)."
+    detail 'Estimation' "$VALUE téléchargements (CPU : $cpu_count, RAM totale : ${mem_gb} Gio)."
 }
 if [[ "$MODE" == auto ]]; then detect_optimal_value; fi
 
@@ -247,14 +273,17 @@ if $DRY_RUN; then
     if [[ "$MODE" == restore ]]; then
         find_backup
         validate_pacman_syntax "$RESTORE_FILE" || exit 1
-        info "[DRY-RUN] Restauration prévue depuis : $RESTORE_FILE (valeur effective : $EFFECTIVE_VALUE)."
-        info '[DRY-RUN] La configuration courante serait sauvegardée avant restauration.'
+        dry "Restauration depuis $RESTORE_FILE (valeur effective : $EFFECTIVE_VALUE)."
+        dry 'La configuration courante serait sauvegardée avant restauration.'
     else
         validate_pacman_syntax "$PACMAN_CONF" || exit 1
-        info "[DRY-RUN] Valeur actuelle : $EFFECTIVE_VALUE ; valeur demandée : $VALUE."
+        detail 'Avant' "Valeur effective : $EFFECTIVE_VALUE"
+        dry "Valeur demandée : $VALUE"
         render_config "$PACMAN_CONF" || exit 1
-        info '[DRY-RUN] Aperçu seulement : la configuration candidate et les Include seront validés avant application réelle.'
+        warn 'La configuration candidate et les Include seront validés lors de l’application.'
     fi
+    step 3 'Bilan de la simulation'
+    ok 'Simulation terminée.'
     exit 0
 fi
 
@@ -278,10 +307,11 @@ SNAPSHOT=$(mktemp "${PACMAN_CONF}.snapshot.XXXXXXXX")
 cp -p -- "$PACMAN_CONF" "$SNAPSHOT"
 CANDIDATE=$(mktemp "${PACMAN_CONF}.candidate.XXXXXXXX")
 if [[ "$MODE" == restore ]]; then
+    detail 'Source' "$RESTORE_FILE"
     cp -p -- "$RESTORE_FILE" "$CANDIDATE"
 else
     validate_pacman_syntax "$SNAPSHOT" || exit 1
-    info "Valeur actuelle effective : $EFFECTIVE_VALUE"
+    detail 'Avant' "Valeur effective : $EFFECTIVE_VALUE"
     cp -p -- "$SNAPSHOT" "$CANDIDATE"
     render_config "$SNAPSHOT" > "$CANDIDATE"
 fi
@@ -294,12 +324,15 @@ if [[ "$MODE" != restore ]]; then
 else
     EXPECTED_VALUE="$EFFECTIVE_VALUE"
 fi
+ok "Configuration préparée et validée. Valeur effective prévue : $EXPECTED_VALUE"
 if cmp -s -- "$CANDIDATE" "$SNAPSHOT"; then
-    info 'La configuration correspond déjà au résultat demandé ; aucun remplacement nécessaire.'
+    step 3 'Vérifier le résultat'
+    ok 'La configuration correspond déjà au résultat demandé.'
     exit 0
 fi
 
 # Fonction pour créer une sauvegarde horodatée unique, même dans la même seconde.
+step 3 'Sauvegarder, appliquer et vérifier'
 BACKUP_FILE=$(mktemp "$BACKUP_DIR/pacman.conf.bak.$(date '+%Y%m%d_%H%M%S').XXXXXXXX")
 if ! cp -p -- "$SNAPSHOT" "$BACKUP_FILE"; then
     rm -f -- "$BACKUP_FILE"
@@ -315,7 +348,7 @@ touch -- "$BACKUP_FILE"
 LATEST_CANDIDATE=$(mktemp "$BACKUP_DIR/.latest.XXXXXXXX")
 printf '%s\n' "${BACKUP_FILE##*/}" > "$LATEST_CANDIDATE"
 mv -f -- "$LATEST_CANDIDATE" "$BACKUP_DIR/.latest"
-log_message "Sauvegarde avant modification : $BACKUP_FILE"
+log_message "$BOLD" 'Sauvegarde' "Sauvegarde avant modification : $BACKUP_FILE"
 # Vérifier que personne n'a remplacé ou modifié la configuration entre-temps.
 [[ ! -L "$PACMAN_CONF" ]] && cmp -s -- "$PACMAN_CONF" "$SNAPSHOT" \
     || fatal 'Configuration modifiée pendant la préparation ; application annulée.'
@@ -325,5 +358,5 @@ mv -f -- "$CANDIDATE" "$PACMAN_CONF"
 validate_pacman_syntax "$PACMAN_CONF" || exit 1
 [[ "$EFFECTIVE_VALUE" == "$EXPECTED_VALUE" ]] || fatal 'Valeur effective différente après remplacement.'
 COMMIT_PENDING=false
-log_message "Modification validée. ParallelDownloads effectif : $EFFECTIVE_VALUE"
-info "Retour arrière : sudo bash \"$0\" --restore \"$BACKUP_FILE\""
+log_message "$GREEN" 'OK' "Modification validée. ParallelDownloads effectif : $EFFECTIVE_VALUE"
+detail 'Restauration' "sudo bash \"$0\" --restore \"$BACKUP_FILE\""

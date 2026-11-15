@@ -1,38 +1,68 @@
-# Catppuccin Mocha : invite compacte, sans module qui consulte le réseau.
-# Variante Stow ; l'installateur par copie conserve son preset Powerline séparé.
+# Catppuccin Powerline, palette Mocha : https://starship.rs/presets/catppuccin-powerline
+# Même configuration en copie et avec Stow. Les glyphes demandent une Nerd Font.
 add_newline = true
 palette = "catppuccin_mocha"
-format = "$directory$git_branch$git_status$cmd_duration$line_break$character"
+format = """
+[](fg:red)$os$username[](fg:red bg:peach)$directory[](fg:peach)\
+( [](fg:yellow)$git_branch$git_status[](fg:yellow))\
+[ ](fg:lavender)$time[](fg:lavender)$cmd_duration\
+$line_break$character"""
 command_timeout = 700
 
+[os]
+disabled = false
+style = "fg:crust bg:red"
+format = "[ $symbol]($style)"
+
+[os.symbols]
+CachyOS = " "
+Arch = "󰣇 "
+Linux = "󰌽 "
+Macos = "󰀵 "
+Unknown = " "
+
+[username]
+show_always = true
+style_user = "bold fg:crust bg:red"
+style_root = "bold fg:crust bg:red"
+format = "[$user ]($style)"
+
 [directory]
-style = "bold blue"
+style = "bold fg:crust bg:peach"
+format = "[ $path$read_only ]($style)"
 truncation_length = 3
 truncate_to_repo = true
+truncation_symbol = "…/"
 read_only = " "
 
 [git_branch]
 symbol = " "
-style = "bold mauve"
-format = "on [$symbol$branch]($style) "
+style = "bold fg:crust bg:yellow"
+format = "[ $symbol$branch ]($style)"
 
 [git_status]
-style = "peach"
-format = "([$all_status$ahead_behind]($style) )"
+style = "fg:crust bg:yellow"
+format = "([$all_status$ahead_behind ]($style))"
+
+[time]
+disabled = false
+time_format = "%H:%M"
+style = "fg:crust bg:lavender"
+format = "[  $time ]($style)"
 
 [cmd_duration]
 min_time = 2000
 style = "yellow"
-format = "took [$duration]($style) "
+format = " [ took $duration]($style)"
 
 [character]
 success_symbol = "[❯](bold green)"
 error_symbol = "[❯](bold red)"
 
 [palettes.catppuccin_mocha]
-blue = "#89b4fa"
-mauve = "#cba6f7"
 peach = "#fab387"
 yellow = "#f9e2af"
 green = "#a6e3a1"
 red = "#f38ba8"
+lavender = "#b4befe"
+crust = "#11111b"

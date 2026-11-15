@@ -10,11 +10,16 @@ L'exécution réelle sur votre ordinateur doit rester une action autorisée.
 
 ## Plan, sélection et modes
 
-Depuis la racine du dépôt :
+Depuis la racine du dépôt, utilisez la même commande dans Fish, Bash ou Zsh :
 
 ```bash
-bash "04 - install_zsh.sh" --dry-run
+bash "04 - install_zsh.sh" --interactive --dry-run
 ```
+
+Le menu propose le mode de déploiement, les modules, Starship et les alias Zsh.
+Il s’ouvre aussi en lançant le script via Bash sans argument dans un terminal.
+`q` quitte le menu avant toute application. `--dry-run` seul affiche directement
+le plan de la sélection par défaut.
 
 La simulation lit les fichiers, les informations du compte et les bases locales de
 Pacman. Elle ne crée aucun lien, fichier, journal, sauvegarde ou cache et ne
@@ -71,6 +76,17 @@ Après autorisation de l'application sur la machine cible, relancer la commande
 choisie sans `--dry-run`. Le script redemande un accord pour chaque catégorie
 d'action. Il n'existe pas d'option qui accepte tout sans interaction.
 
+Le script lit le shell de connexion dans le compte utilisateur et affiche la
+disponibilité de Fish et Zsh. Si le module Zsh est sélectionné, il propose de
+garder le shell actuel ou de le remplacer par Zsh après le déploiement. Garder
+le shell actuel est le choix par défaut. Un changement confirmé est vérifié et
+consigné pour la restauration. Fish reste installé dans les deux cas.
+[Changement de shell sous CachyOS](https://wiki.cachyos.org/fr/configuration/post_install_setup/)
+
+Le rapport final récapitule les modules, les installations et vérifications
+effectuées, les actions facultatives et le chemin du retour arrière lorsqu’une
+session de sauvegarde est disponible.
+
 Autres options :
 
 - `--no-theme` : ne pas déployer le module Starship et conserver la sélection du
@@ -120,9 +136,11 @@ et FZF. La recherche par fragment est chargée après la coloration conformémen
 à ses instructions d'intégration.
 
 FZF, Zoxide, Eza et Ripgrep lisent leurs fragments ou variables d'environnement
-à travers le `.zshrc` commun. Starship lit le fichier versionné
-`~/.config/starship.toml`, avec une invite compacte Catppuccin Mocha. Il n'y a
-plus de génération distincte d'un preset par copie.
+à travers le `.zshrc` commun. Starship utilise le même thème Catppuccin
+Powerline (Mocha) en copie et avec Stow, via `~/.config/starship.toml`.
+Le dossier, Git et l’horloge apparaissent sur la première ligne. La durée
+s’affiche à partir de deux secondes et la flèche indique le résultat sur la
+ligne suivante. Les séparateurs et les icônes utilisent la Nerd Font du terminal.
 
 Les alias sont dans [Dotfiles/zsh/.config/cachyos-zsh/aliases.zsh](../Dotfiles/zsh/.config/cachyos-zsh/aliases.zsh),
 chargés avec `source` : navigation, fichiers, Git, système, réseau, `bt` pour btop

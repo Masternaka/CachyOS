@@ -2,24 +2,29 @@
 
 set -euo pipefail
 
-# ─── Couleurs ────────────────────────────────────────────────────────────────
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-CYAN='\033[0;36m'
-GREY='\033[0;90m'
-RESET='\033[0m'
+# ─── Affichage ───────────────────────────────────────────────────────────────
+GREEN='' YELLOW='' CYAN='' BOLD='' RESET=''
+RED='' ERROR_RESET=''
+if [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
+  if [[ -t 1 ]]; then
+    GREEN='\033[32m' YELLOW='\033[33m' CYAN='\033[1;36m' BOLD='\033[1m' RESET='\033[0m'
+  fi
+  if [[ -t 2 ]]; then
+    RED='\033[1;31m' ERROR_RESET='\033[0m'
+  fi
+fi
 
-info()  { printf '%b[✔]%b %s\n' "$GREEN" "$RESET" "$*"; }
-warn()  { printf '%b[!]%b %s\n' "$YELLOW" "$RESET" "$*"; }
-error() { printf '%b[✘]%b %s\n' "$RED" "$RESET" "$*" >&2; }
-dry()   { printf '%b[~]%b %s\n' "$GREY" "$RESET" "$*"; }
-title() { printf '\n%b── %s ──%b\n' "$CYAN" "$*" "$RESET"; }
+info()   { printf '  %b%-12s%b %s\n' "$GREEN" 'OK' "$RESET" "$*"; }
+warn()   { printf '  %b%-12s%b %s\n' "$YELLOW" 'Attention' "$RESET" "$*"; }
+error()  { printf '  %b%-12s%b %s\n' "$RED" 'Erreur' "$ERROR_RESET" "$*" >&2; }
+detail() { printf '  %b%-12s%b %s\n' "$BOLD" "$1" "$RESET" "$2"; }
+dry()    { printf '  %b%-12s%b %s\n' "$CYAN" 'Simulation' "$RESET" "$*"; }
+step()   { printf '\n%b── %s/3  %s%b\n' "$CYAN" "$1" "$2" "$RESET"; }
 
 # ─── Dry-run et arguments ────────────────────────────────────────────────────
 usage() {
   printf 'Usage : bash "%s" [--dry-run | --help]\n' "${0##*/}"
-  printf '%s\n' 'Active et démarre Bluetooth, fstrim.timer et paccache.timer.' \
+  printf '%s\n' 'Active et démarre Bluetooth, le serveur SSH, fstrim.timer et paccache.timer.' \
     '  --dry-run  Inspecte et décrit les actions sans modification.' \
     '  --help     Affiche cette aide.'
 }
@@ -37,6 +42,13 @@ case "${1:-}" in
 esac
 
 # ─── Vérification root et environnement ──────────────────────────────────────
+printf '%bCachyOS · Services systemd%b\n' "$BOLD" "$RESET"
+if $DRY_RUN; then
+  dry 'Mode dry-run : aucune modification ne sera appliquée.'
+else
+  detail 'Mode' 'Application des changements'
+fi
+step 1 'Vérifier les prérequis'
 if [[ $EUID -ne 0 ]] && ! $DRY_RUN; then
   error 'Ce script doit être exécuté en tant que root (sudo).'
   exit 1
@@ -52,10 +64,10 @@ if ! systemctl show --property=Version --value >/dev/null; then
   error 'Impossible de joindre le gestionnaire systemd système.'
   exit 1
 fi
-if $DRY_RUN; then warn 'Mode dry-run : aucune modification ne sera appliquée.'; fi
+info 'systemctl et pacman disponibles, gestionnaire systemd joignable.'
 
 # ─── Listes ──────────────────────────────────────────────────────────────────
-SERVICES=(bluetooth.service)
+SERVICES=(bluetooth.service sshd.service)
 TIMERS=(fstrim.timer paccache.timer)
 UNITS=("${SERVICES[@]}" "${TIMERS[@]}")
 FAILURES=0
@@ -68,6 +80,7 @@ check_deps() {
   local unit="$1" pkg cmd=''
   case "$unit" in
     bluetooth.service) pkg=bluez ;;
+    sshd.service) pkg=openssh ;;
     fstrim.timer) pkg=util-linux; cmd=fstrim ;;
     paccache.timer) pkg=pacman-contrib; cmd=paccache ;;
     *) error "Unité sans dépendance déclarée : $unit"; return 1 ;;
@@ -125,7 +138,7 @@ record_undo() {
       '# Ne restaure ni le cache supprimé, ni les effets du TRIM, ni un état failed.' \
       '[[ $EUID -eq 0 ]] || { echo "Exécutez avec sudo bash." >&2; exit 1; }' > "$candidate" || return 1
     UNDO_FILE="$candidate"
-    warn "Retour arrière enregistré dans : $UNDO_FILE"
+    detail 'Sauvegarde' "Retour arrière enregistré dans : $UNDO_FILE"
   fi
   {
     printf '\n# %s : activation=%s, état=%s\n' "$unit" "$enabled" "$active" || return 1
@@ -149,7 +162,7 @@ enable_unit() {
   check_deps "$unit" || return 1
   read_state "$unit" || return 1
   initial_enabled="$ENABLED_STATE"; initial_active="$ACTIVE_STATE"
-  info "$unit — état initial : activation=$initial_enabled, état=$initial_active."
+  detail 'Avant' "activation=$initial_enabled, état=$initial_active"
   if [[ "$initial_enabled" == enabled && "$initial_active" == active ]]; then
     info "$unit — déjà activé durablement et actif, aucune action."
     return 0
@@ -167,28 +180,46 @@ enable_unit() {
     return 1
   fi
   if [[ "$initial_enabled" == enabled ]]; then
+    detail 'Action' "Démarrer $unit."
     if ! systemctl start "$unit"; then
       error "$unit — échec du démarrage."
       return 1
     fi
-  elif ! systemctl enable --now "$unit"; then
-    error "$unit — échec de l'activation/démarrage ; modification partielle possible."
-    return 1
+  else
+    detail 'Action' "Activer durablement et démarrer $unit."
+    if ! systemctl enable --now "$unit"; then
+      error "$unit — échec de l'activation/démarrage ; modification partielle possible."
+      return 1
+    fi
   fi
 }
 
 # ─── Activation des services et timers ────────────────────────────────────────
-title 'Services et timers'
+if $DRY_RUN; then
+  step 2 'Inspecter les unités et présenter les actions prévues'
+else
+  step 2 'Inspecter et configurer les unités'
+fi
 warn 'Les timers peuvent déclencher leurs tâches dès leur démarrage selon leur configuration.'
 for unit in "${UNITS[@]}"; do
+  case "$unit" in
+    bluetooth.service) description='Bluetooth' ;;
+    sshd.service) description='Serveur SSH (OpenSSH)' ;;
+    fstrim.timer) description='TRIM périodique des SSD' ;;
+    paccache.timer) description='Nettoyage périodique du cache Pacman' ;;
+    *) description='Unité systemd' ;;
+  esac
+  printf '\n%b%s%b · %s\n' "$BOLD" "$description" "$RESET" "$unit"
   if ! enable_unit "$unit"; then
     FAILURES=$((FAILURES + 1))
   fi
 done
 
 # ─── Résumé ──────────────────────────────────────────────────────────────────
-if ! $DRY_RUN; then
-  title 'Statut final'
+if $DRY_RUN; then
+  step 3 'Bilan de la simulation'
+else
+  step 3 'Vérifier le statut final'
   for unit in "${UNITS[@]}"; do
     if ! read_state "$unit"; then
       FAILURES=$((FAILURES + 1))
@@ -201,7 +232,9 @@ if ! $DRY_RUN; then
   done
 fi
 if [[ -n "$UNDO_FILE" ]]; then
-  warn "Retour arrière : examinez $UNDO_FILE, puis lancez sudo bash $UNDO_FILE si nécessaire."
+  printf '\n'
+  detail 'Sauvegarde' "Examinez $UNDO_FILE avant tout retour arrière."
+  detail 'Commande' "sudo bash $UNDO_FILE"
 fi
 if (( FAILURES > 0 )); then
   error 'Terminé avec des erreurs : consultez les détails ci-dessus. Les unités indépendantes ont été traitées.'

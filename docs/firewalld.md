@@ -1,11 +1,40 @@
 # Configurer le pare-feu
 
-Le script `02 - firewalld_settings.sh` est limité aux règles d'un firewalld déjà
-installé et actif. L'installation des paquets relève du groupe `securite` de
-`08 - package_install.sh`. Le démarrage du service ou le remplacement d'un autre
-pare-feu constitue une action système distincte, à autoriser après examen.
+## Menu interactif
 
-## Plan et sélection
+```bash
+bash "02 - firewalld_settings.sh" --interactive --dry-run
+```
+
+Le menu s’ouvre aussi sans argument depuis un terminal. Il affiche l’état des
+unités systemd et interroge les règles UFW avec `ufw status`, qui peut nécessiter
+les droits root. Chaque choix propose de passer l’étape. Gufw correspond à UFW
+et Firewall Config à firewalld. Pacman vérifie la présence du paquet dans les
+dépôts configurés et présente sa transaction avant installation.
+[Gufw](https://packages.cachyos.org/package/extra/any/gufw) ·
+[Firewall Config](https://packages.cachyos.org/package/extra/any/firewall-config)
+
+Après autorisation sur la cible, ouvrir le menu avec `sudo bash` depuis un accès
+local. L’arrêt peut couper une connexion ou laisser la machine sans l’un de ces
+deux pare-feu actifs. Le menu présente les commandes et demande confirmation.
+Si une interface et une désactivation sont sélectionnées, l’installation passe
+en premier. Le choix de l’interface est indépendant du choix de désactivation.
+
+Le rapport final indique les commandes exécutées, les vérifications et le
+dossier de sauvegarde. Avant l’arrêt, le script copie la configuration et
+conserve un relevé dans `/var/tmp/cachyos-firewall.*`. Le fichier `restaurer.sh`
+est à examiner depuis un accès local avant une autre modification. Il permet
+de rétablir l’état du service et la configuration d’activation d’UFW. Les
+règles temporaires firewalld peuvent demander une restauration manuelle.
+L’interface graphique installée reste installée lors de ce retour arrière.
+
+L’arrêt de firewalld est vérifié via systemd. Avec `CleanupOnExit=no`, ses
+règles peuvent rester chargées après l’arrêt. Une autre unité peut aussi
+redémarrer firewalld à la demande. Le menu permet de conserver l’autre
+pare-feu dans son état actuel. [Configuration firewalld](https://firewalld.org/documentation/man-pages/firewalld.conf.html) ·
+[Gestion du service](https://firewalld.org/documentation/howto/enable-and-disable-firewalld)
+
+## Régler la zone et les services de firewalld
 
 ```bash
 bash "02 - firewalld_settings.sh" --dry-run --services ssh
@@ -48,10 +77,10 @@ La copie globale n'est pas réappliquée automatiquement.
 
 ## Migration depuis UFW : procédure distincte
 
-Le script ne désactive et ne désinstalle jamais UFW. Un service UFW actif, activé
-au démarrage ou dans un état non pris en charge bloque la configuration. Il ne
-faut pas démarrer deux gestionnaires de règles en espérant que leurs effets se
-combinent correctement. Ce script ne fournit donc pas d'option de migration.
+Le menu peut désactiver UFW. La reprise des règles et le démarrage du pare-feu
+de remplacement relèvent d’une migration distincte. Un service UFW actif, activé
+au démarrage ou dans un état non pris en charge bloque le mode `--services` sur
+firewalld.
 
 Avant une migration réelle, préparer séparément :
 
