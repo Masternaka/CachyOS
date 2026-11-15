@@ -12,12 +12,21 @@ bash "09 - purge_applications.sh" --list
 ```
 
 Sans argument, le script affiche l’état des paquets dans deux listes, Pacman
-et Flatpak, avant de demander une sélection pour chacune. Saisis des numéros
-séparés par des virgules, ou `tout` pour choisir toutes les entrées installées
-et sélectionnables de la liste en cours. Appuie sur Entrée pour passer une
-liste ou sur `q` pour annuler. `--list` affiche seulement l’inventaire.
-Une application Flatpak installée seulement au niveau système apparaît dans
-l’inventaire et reste hors de la sélection.
+et Flatpak. Les numéros se suivent d’une liste à l’autre et le menu te laisse
+faire toute la sélection en une fois.
+
+| Saisie | Sélection |
+| --- | --- |
+| `1 2` ou `1,2` | Les entrées numérotées 1 et 2, si elles sont installées et admissibles |
+| `haruna,org.kde.haruna` | Les deux éditions de Haruna, si elles sont installées et admissibles |
+| `tout` | Toutes les entrées installées et admissibles des deux catalogues |
+| `pacman` ou `flatpak` | Toutes les entrées admissibles du catalogue choisi |
+| Entrée ou `q` | Annuler la sélection |
+
+`--list` affiche seulement l’inventaire. Une application Flatpak installée
+seulement au niveau système apparaît dans l’inventaire et reste hors de la
+sélection. Les applications installées hors catalogue restent accessibles avec
+les options `--pacman` et `--flatpak` et ne sont pas comprises dans `tout`.
 
 Haruna figure dans les deux listes. Pour ajouter des applications au catalogue,
 modifie `NATIVE_CATALOGUE` (format `paquet` ou `paquet:chemin-de-configuration`)
@@ -66,6 +75,9 @@ personnelles du même identifiant demandent un examen manuel.
 Fermer les applications visées. Après la simulation, relancer avec `--apply`
 et refaire la sélection, ou reprendre les mêmes cibles en arguments. Taper
 `PURGER` lorsque le plan affiché est correct.
+
+Le plan natif utilise `pacman -R --print` pour vérifier la transaction sans
+désinstaller les paquets. L’option `-n` est utilisée à l’étape du retrait.
 
 1. Le script crée un dossier privé `~/.cachyos-purge.*` et archive les fichiers
    existants de `/etc` déclarés par les paquets demandés. Les fichiers déclarés

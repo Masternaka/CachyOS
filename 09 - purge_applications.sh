@@ -49,7 +49,8 @@ Usage : bash "09 - purge_applications.sh" [--dry-run | --apply] [cibles]
   --apply            Présente le plan puis demande confirmation.
   --help, -h         Affiche cette aide.
 
-Sans cible en argument, sélectionner les paquets dans les deux listes.
+Sans cible en argument, choisir dans un seul menu avec les numéros ou les noms.
+« tout » sélectionne toutes les entrées installées et admissibles des deux catalogues.
 Lancer sans sudo. Avec --apply, le script utilise sudo pour les paquets natifs.
 Une purge native archive d’abord les fichiers /etc déclarés par les paquets.
 Les configurations personnelles sont mises de côté après la désinstallation.
@@ -118,10 +119,11 @@ matching_refs() {
 }
 
 show_catalogue() {
-    local installed user_refs system_refs entry id label i system_count
+    local installed user_refs system_refs entry id label i number system_count
     local pacman_readable=false flatpak_readable=false
     NATIVE_AVAILABLE=()
     FLATPAK_AVAILABLE=()
+    CATALOGUE_NAMES=()
     if command -v pacman >/dev/null && installed=$(pacman -Qq); then
         pacman_readable=true
     fi
@@ -134,12 +136,14 @@ show_catalogue() {
     step 'Catalogue · Paquets natifs (Pacman)'
     for i in "${!NATIVE_CATALOGUE[@]}"; do
         entry="${NATIVE_CATALOGUE[i]%%:*}"
-        label="$((i + 1)). $entry"
+        number=$((i + 1))
+        CATALOGUE_NAMES[number]="$entry"
+        label="$number. $entry"
         if ! $pacman_readable; then
             status_line "$YELLOW" 'État inconnu' "$label"
         elif contains_line "$installed" "$entry"; then
             status_line "$GREEN" 'Installé' "$label"
-            NATIVE_AVAILABLE+=("$((i + 1))")
+            NATIVE_AVAILABLE+=("$number")
         else
             status_line "$BLUE" 'Absent' "$label"
         fi
@@ -148,7 +152,9 @@ show_catalogue() {
     step 'Catalogue · Applications Flatpak'
     for i in "${!FLATPAK_CATALOGUE[@]}"; do
         id="${FLATPAK_CATALOGUE[i]}"
-        label="$((i + 1)). $id"
+        number=$((${#NATIVE_CATALOGUE[@]} + i + 1))
+        CATALOGUE_NAMES[number]="$id"
+        label="$number. $id"
         if ! $flatpak_readable; then
             status_line "$YELLOW" 'État inconnu' "$label"
             continue
@@ -169,48 +175,59 @@ show_catalogue() {
                 else
                     status_line "$GREEN" 'Installé dans ton compte' "$label"
                 fi
-                FLATPAK_AVAILABLE+=("$((i + 1))") ;;
+                FLATPAK_AVAILABLE+=("$number") ;;
             *) status_line "$YELLOW" 'Plusieurs installations personnelles' "$label" ;;
         esac
     done
 }
 
 select_catalogue_entries() {
-    local group="$1" answer number valid
-    local -a requested
-    shift
+    local answer item number match
+    local -a requested available
     SELECTED=()
-    if (( $# == 0 )); then
-        info "$group · Aucune entrée sélectionnable."
-        return
+    available=(
+        ${NATIVE_AVAILABLE[@]+"${NATIVE_AVAILABLE[@]}"}
+        ${FLATPAK_AVAILABLE[@]+"${FLATPAK_AVAILABLE[@]}"}
+    )
+    if (( ${#available[@]} == 0 )); then
+        info 'Aucune application du catalogue ne peut être sélectionnée.'
+        return 0
     fi
+    step 'Choisir les applications à retirer'
+    info 'Saisir les numéros ou les noms exacts, séparés par des espaces ou des virgules.'
+    info 'tout = les deux listes · pacman = les paquets natifs · flatpak = les Flatpaks personnels'
+    info 'Ces choix visent les entrées installées et admissibles des catalogues affichés.'
     while true; do
         SELECTED=()
-        printf '\n  %s · Numéros séparés par des virgules, tout, Entrée pour passer, q pour quitter : ' "$group"
-        if ! IFS= read -r answer; then answer=q; fi
-        answer="${answer//[[:space:]]/}"
-        case "$answer" in
-            '') return ;;
-            q|Q) info 'Sélection annulée.'; exit 0 ;;
-            tout|TOUT) SELECTED=("$@"); return ;;
-        esac
-        if [[ ! "$answer" =~ ^[1-9][0-9]*(,[1-9][0-9]*)*$ ]]; then
-            warn 'Saisir des numéros de la liste ou « tout ».'
-            continue
+        printf '\n  Sélection (Entrée ou q pour annuler) : '
+        if ! IFS= read -r answer; then answer=''; fi
+        IFS=$' \t' read -r -a requested <<< "${answer//,/ }"
+        if (( ${#requested[@]} == 0 )); then return 0; fi
+        if (( ${#requested[@]} == 1 )); then
+            case "${requested[0]}" in
+                q|Q) return 0 ;;
+                tout|TOUT) SELECTED=("${available[@]}"); return 0 ;;
+                pacman) SELECTED=(${NATIVE_AVAILABLE[@]+"${NATIVE_AVAILABLE[@]}"}); return 0 ;;
+                flatpak) SELECTED=(${FLATPAK_AVAILABLE[@]+"${FLATPAK_AVAILABLE[@]}"}); return 0 ;;
+            esac
         fi
-        IFS=',' read -r -a requested <<< "$answer"
-        valid=true
-        for number in "${requested[@]}"; do
-            if ! contains_line "$(printf '%s\n' "$@")" "$number"; then
-                warn "L’entrée $number est indisponible dans cette liste."
-                valid=false
-                break
+        for item in "${requested[@]}"; do
+            match=''
+            for number in "${available[@]}"; do
+                if [[ "$item" == "$number" || "$item" == "${CATALOGUE_NAMES[number]}" ]]; then
+                    match="$number"
+                    break
+                fi
+            done
+            if [[ -z "$match" ]]; then
+                warn "Entrée indisponible : $item. Refaire la sélection."
+                continue 2
             fi
-            if ! contains_line "$(printf '%s\n' "${SELECTED[@]}")" "$number"; then
-                SELECTED+=("$number")
+            if ! contains_line "$(printf '%s\n' ${SELECTED[@]+"${SELECTED[@]}"})" "$match"; then
+                SELECTED+=("$match")
             fi
         done
-        if $valid; then return; fi
+        return 0
     done
 }
 
@@ -220,14 +237,13 @@ if $CATALOGUE_MODE; then
     fi
     show_catalogue
     if $LIST || [[ ! -t 0 || ! -t 1 ]]; then exit 0; fi
-    select_catalogue_entries 'Pacman' ${NATIVE_AVAILABLE[@]+"${NATIVE_AVAILABLE[@]}"}
+    select_catalogue_entries
     for number in ${SELECTED[@]+"${SELECTED[@]}"}; do
-        entry="${NATIVE_CATALOGUE[number - 1]}"
-        NATIVE+=("${entry%%:*}")
-    done
-    select_catalogue_entries 'Flatpak' ${FLATPAK_AVAILABLE[@]+"${FLATPAK_AVAILABLE[@]}"}
-    for number in ${SELECTED[@]+"${SELECTED[@]}"}; do
-        FLATPAKS+=("${FLATPAK_CATALOGUE[number - 1]}")
+        if (( number <= ${#NATIVE_CATALOGUE[@]} )); then
+            NATIVE+=("${CATALOGUE_NAMES[number]}")
+        else
+            FLATPAKS+=("${CATALOGUE_NAMES[number]}")
+        fi
     done
     if (( ${#NATIVE[@]} + ${#FLATPAKS[@]} == 0 )); then info 'Aucune cible sélectionnée.'; exit 0; fi
 fi
@@ -258,6 +274,11 @@ add_config() {
     fi
 }
 
+preview_native_removal() {
+    # Pacman accepte --nosave (-n) uniquement pour la désinstallation réelle.
+    pacman -R --print --print-format '%n %v' -- "$@"
+}
+
 read_plan() {
     local installed target files path user_refs system_refs ref id entry
     NATIVE_TARGETS=()
@@ -274,8 +295,8 @@ read_plan() {
             if ! contains_line "$(printf '%s\n' "${NATIVE_TARGETS[@]}")" "$target"; then NATIVE_TARGETS+=("$target"); fi
         done
         if (( ${#NATIVE_TARGETS[@]} > 0 )); then
-            NATIVE_TRANSACTION=$(pacman -Rn --print --print-format '%n %v' -- "${NATIVE_TARGETS[@]}") ||
-                fatal 'Pacman refuse la suppression. Examiner les dépendances.'
+            NATIVE_TRANSACTION=$(preview_native_removal "${NATIVE_TARGETS[@]}") ||
+                fatal 'Pacman n’a pas pu préparer le plan de suppression. Voir le diagnostic ci-dessus.'
             files=$(pacman -Qlq -- "${NATIVE_TARGETS[@]}") || fatal 'Inventaire des fichiers Pacman impossible.'
             while IFS= read -r path; do
                 [[ "$path" == /etc/* && "$path" != */ ]] || continue
@@ -405,7 +426,7 @@ if (( ${#FLATPAK_TARGETS[@]} > 0 )); then
     done
 fi
 if (( ${#NATIVE_TARGETS[@]} > 0 )); then
-    current_transaction=$(pacman -Rn --print --print-format '%n %v' -- "${NATIVE_TARGETS[@]}") ||
+    current_transaction=$(preview_native_removal "${NATIVE_TARGETS[@]}") ||
         fatal 'La suppression des paquets natifs est devenue impossible.'
     [[ "$current_transaction" == "$NATIVE_TRANSACTION" ]] || fatal 'Le plan Pacman a changé depuis la sauvegarde.'
     sudo pacman -Rn -- "${NATIVE_TARGETS[@]}" || fatal 'La désinstallation Pacman a échoué ou a été annulée.'
