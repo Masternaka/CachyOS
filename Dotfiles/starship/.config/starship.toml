@@ -1,5 +1,6 @@
 # Catppuccin Powerline, palette Mocha : https://starship.rs/presets/catppuccin-powerline
-# Même configuration en copie et avec Stow. Les glyphes demandent une Nerd Font.
+# Palette du dépôt : Mocha. Le script 04 peut choisir une variante pour le compte.
+# Les glyphes demandent une Nerd Font.
 add_newline = true
 palette = "catppuccin_mocha"
 format = """
@@ -11,7 +12,7 @@ command_timeout = 700
 
 [os]
 disabled = false
-style = "fg:crust bg:red"
+style = "fg:on_red bg:red"
 format = "[ $symbol]($style)"
 
 [os.symbols]
@@ -23,8 +24,8 @@ Unknown = " "
 
 [username]
 show_always = true
-style_user = "bold fg:crust bg:red"
-style_root = "bold fg:crust bg:red"
+style_user = "bold fg:on_red bg:red"
+style_root = "bold fg:on_red bg:red"
 format = "[$user ]($style)"
 
 [directory]
@@ -66,3 +67,32 @@ green = "#a6e3a1"
 red = "#f38ba8"
 lavender = "#b4befe"
 crust = "#11111b"
+on_red = "#11111b"
+
+[palettes.catppuccin_macchiato]
+peach = "#f5a97f"
+yellow = "#eed49f"
+green = "#a6da95"
+red = "#ed8796"
+lavender = "#b7bdf8"
+crust = "#181926"
+on_red = "#181926"
+
+[palettes.catppuccin_frappe]
+peach = "#ef9f76"
+yellow = "#e5c890"
+green = "#a6d189"
+red = "#e78284"
+lavender = "#babbf1"
+crust = "#232634"
+on_red = "#232634"
+
+[palettes.catppuccin_latte]
+peach = "#fe640b"
+yellow = "#df8e1d"
+green = "#40a02b"
+red = "#d20f39"
+lavender = "#7287fd"
+# Texte clair sur le rouge, sombre sur les autres segments de Latte.
+crust = "#1c1c27"
+on_red = "#eff1f5"

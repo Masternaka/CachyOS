@@ -7,7 +7,10 @@ set -Eeuo pipefail
 # =============================================================================
 DRY_RUN=false
 INTERACTIVE=false
+CHECK_SCRIPTS=false
 USE_THEME=true
+STARSHIP_PALETTE=mocha
+PALETTE_GIVEN=false
 REPLACE_COMMANDS=false
 MODE=copy
 MODE_GIVEN=false
@@ -74,20 +77,41 @@ read_choice() {
         exit 0
     fi
 }
+check_repo_scripts() {
+    local script name invalid=0
+    printf '\n%bScripts Bash du dépôt%b\n' "$CYAN" "$RESET" >&2
+    for script in "$SCRIPT_DIR"/*.sh; do
+        [[ -f "$script" && ! -L "$script" ]] || continue
+        name="${script##*/}"
+        if ! bash -n -- "$script"; then
+            error "$name · syntaxe Bash invalide"
+            invalid=1
+        elif [[ ! -x "$script" ]]; then
+            error "$name · sans permission d’exécution directe (syntaxe Bash valide)"
+            invalid=1
+        else
+            ok "$name · exécutable, syntaxe Bash valide"
+        fi
+    done
+    return "$invalid"
+}
 show_help() {
     cat <<'HELP'
 Usage : bash "04 - install_zsh.sh" [options]
 
 Installe les outils choisis puis prépare leur intégration depuis Dotfiles.
 Utilisateur normal uniquement. Kitty et Foot utilisent JetBrainsMono Nerd Font.
+Le module Yazi prépare aussi Micro comme éditeur de texte par défaut.
 Depuis Fish, lancer avec bash comme dans les exemples. Fish peut rester
 le shell de connexion.
 
   --interactive        Ouvre le menu de sélection (aussi sans argument dans un terminal)
+  --check-scripts      Vérifie les permissions et la syntaxe Bash des scripts du dépôt
   --dry-run, -n        Plan sans écriture, téléchargement ou installation
   --mode copy|stow     Copies (défaut) ou liens GNU Stow
   --only LISTE         Modules séparés par virgules ; défaut : les 16 modules
   --no-theme           Conserver le thème existant ; ne pas déployer starship
+  --palette VARIANTE   Catppuccin Powerline : mocha, macchiato, frappe ou latte
   --replace-commands   Activer les alias remplaçant ls/cat/cp/mv/rm/etc.
   --extras             Compatibilité : fd, delta, lazygit sont inclus par défaut
   --restore DOSSIER    Restaurer une session sauvegardée (confirmation requise)
@@ -110,19 +134,36 @@ if (( $# == 0 )) && [[ -t 0 ]]; then INTERACTIVE=true; fi
 while (( $# > 0 )); do
     case "$1" in
         --interactive) INTERACTIVE=true; shift ;;
+        --check-scripts) CHECK_SCRIPTS=true; shift ;;
         --dry-run|-n) DRY_RUN=true; shift ;;
         --no-theme) USE_THEME=false; shift ;;
         --replace-commands) REPLACE_COMMANDS=true; shift ;;
         --extras) shift ;;
-        --mode|--only|--restore)
+        --mode|--only|--restore|--palette)
             (( $# >= 2 )) && [[ -n "$2" && "$2" != -* ]] || fatal "Valeur manquante pour $1" 2
-            case "$1" in --mode) MODE="$2"; MODE_GIVEN=true ;; --only) ONLY="$2" ;; --restore) RESTORE="$2" ;; esac
+            case "$1" in
+                --mode) MODE="$2"; MODE_GIVEN=true ;;
+                --only) ONLY="$2" ;;
+                --restore) RESTORE="$2" ;;
+                --palette) STARSHIP_PALETTE="$2"; PALETTE_GIVEN=true ;;
+            esac
             shift 2 ;;
         --help|-h) show_help; exit 0 ;;
         *) fatal "Argument inconnu : $1" 2 ;;
     esac
 done
+if $CHECK_SCRIPTS; then
+    check_repo_scripts
+    exit 0
+fi
 [[ "$MODE" == copy || "$MODE" == stow ]] || fatal 'Mode attendu : copy ou stow.' 2
+case "$STARSHIP_PALETTE" in
+    mocha|macchiato|frappe|latte) ;;
+    *) fatal 'Variante attendue : mocha, macchiato, frappe ou latte.' 2 ;;
+esac
+if $PALETTE_GIVEN && { ! $USE_THEME || [[ -n "$RESTORE" ]]; }; then
+    fatal '--palette s’utilise pour déployer Starship.' 2
+fi
 if [[ -n "$RESTORE" ]] && $INTERACTIVE; then fatal '--restore ouvre sa propre confirmation.' 2; fi
 trap 'print_report "$?"' EXIT
 trap 'exit 129' HUP
@@ -184,6 +225,7 @@ for shell_name in fish zsh; do
 done
 
 step 2 'Choisir les modules et préparer le plan'
+check_repo_scripts || warn 'Les fichiers signalés restent inchangés. Un script lisible et syntaxiquement valide peut être lancé avec bash.'
 if $INTERACTIVE; then
     info 'Entrée garde le choix par défaut. Tapez q pour quitter.'
     if ! $MODE_GIVEN; then
@@ -210,12 +252,17 @@ SELECTED=()
 SELECTION=''
 contains() { local needle="$1" item; shift; for item in "$@"; do [[ "$item" == "$needle" ]] && return 0; done; return 1; }
 if $INTERACTIVE; then
-    if $USE_THEME && contains starship "${REQUESTED[@]}"; then
-        read_choice 'Thème Starship [1 = déployer, 2 = garder la sélection actuelle, défaut 1] :'
+    if $USE_THEME && ! $PALETTE_GIVEN && contains starship "${REQUESTED[@]}"; then
+        info 'Starship · Catppuccin Powerline'
+        printf '  1  Mocha (par défaut)\n  2  Macchiato\n  3  Frappé\n  4  Latte (clair)\n  0  Conserver le thème actuel\n' >&2
+        read_choice 'Variante [1] :'
         case "$CHOICE" in
             ''|1) ;;
-            2) USE_THEME=false ;;
-            *) fatal 'Choisissez 1 ou 2 pour le thème.' 2 ;;
+            2) STARSHIP_PALETTE=macchiato ;;
+            3) STARSHIP_PALETTE=frappe ;;
+            4) STARSHIP_PALETTE=latte ;;
+            0) USE_THEME=false ;;
+            *) fatal 'Choisissez une variante de 1 à 4, ou 0 pour garder le thème actuel.' 2 ;;
         esac
     fi
     if ! $REPLACE_COMMANDS && contains zsh "${REQUESTED[@]}"; then
@@ -236,10 +283,16 @@ for module in "${REQUESTED[@]}"; do
     SELECTION+="${SELECTION:+,}$module"
 done
 [[ -n "$SELECTION" ]] || fatal 'Aucun module sélectionné.' 2
+if contains starship "${SELECTED[@]}"; then
+    REPORT+=("Starship · Catppuccin Powerline · $STARSHIP_PALETTE")
+    info "Variante Starship : $STARSHIP_PALETTE"
+elif $PALETTE_GIVEN; then
+    fatal '--palette exige le module starship dans la sélection.' 2
+fi
 REPORT+=("Compte : $USER_NAME · Shell initial : $OLD_SHELL" "Mode : $MODE · Modules : $SELECTION")
 info "Mode : $MODE · Modules : $SELECTION"
 DEPLOY_ARGS=(--repo "$SCRIPT_DIR" --home "$HOME" --mode "$MODE" --packages "$SELECTION"
-             --replace-commands "$REPLACE_COMMANDS" --use-theme "$USE_THEME")
+             --replace-commands "$REPLACE_COMMANDS" --use-theme "$USE_THEME" --palette "$STARSHIP_PALETTE")
 # Premier contrôle sans écriture, avant de proposer une installation de paquets.
 PLAN_TOKEN=$(python3 -B "$DEPLOY_ENGINE" preview "${DEPLOY_ARGS[@]}") || fatal 'Plan de configuration refusé.'
 
@@ -255,6 +308,7 @@ for module in "${SELECTED[@]}"; do
         zsh)
             for pkg in zsh zsh-completions zsh-autosuggestions zsh-syntax-highlighting zsh-history-substring-search fzf zoxide; do add_package "$pkg"; done ;;
         delta) add_package git-delta ;;
+        yazi) add_package yazi; add_package micro ;;
         tealdeer) add_package tealdeer ;;
         fzf|zoxide|eza) add_package "$module"; add_package zsh ;;
         kitty|foot) add_package "$module"; add_package fontconfig; add_package ttf-jetbrains-mono-nerd ;;
@@ -285,6 +339,9 @@ if (( ${#MISSING[@]} > 0 )); then
     warn 'Les paquets et mises à jour ne sont pas annulés par la restauration des configurations.'
 else
     ok 'Tous les paquets requis sont déjà installés.'
+fi
+if contains yazi "${SELECTED[@]}"; then
+    REPORT+=('Yazi : Micro par défaut, sauf si EDITOR désigne un autre éditeur disponible.')
 fi
 if contains zsh "${SELECTED[@]}" && [[ -z "$FZF_TAB_PACKAGE" && ! -d "$FZF_TAB_DIR" ]]; then
     info "fzf-tab proposé séparément : $FZF_TAB_URL ; $FZF_TAB_VERSION ; commit $FZF_TAB_COMMIT ; destination $FZF_TAB_DIR"
@@ -319,6 +376,9 @@ for module in "${SELECTED[@]}"; do
     case "$module" in tealdeer) binary=tldr ;; ripgrep) binary=rg ;; *) binary="$module" ;; esac
     command -v "$binary" >/dev/null 2>&1 || fatal "Commande attendue absente : $binary"
 done
+if contains yazi "${SELECTED[@]}"; then
+    command -v micro >/dev/null 2>&1 || fatal 'Commande attendue absente pour Yazi : micro.'
+fi
 # Le moteur contrôle toujours les sources Zsh sélectionnées avant application.
 if contains zsh "${SELECTED[@]}"; then
 # fzf-tab est une extension locale, pas un gestionnaire. Les lectures de Git

@@ -25,6 +25,7 @@ MODULES = ('zsh', 'starship', 'yazi', 'btop', 'tealdeer', 'bat', 'fzf', 'zoxide'
            'eza', 'ripgrep', 'fd', 'delta', 'lazygit', 'kitty', 'foot', 'duf')
 # Ces outils sont installés sans fichier de configuration ni paquet Stow.
 PACKAGE_ONLY = ('duf',)
+STARSHIP_PALETTES = ('mocha', 'macchiato', 'frappe', 'latte')
 FONT = 'JetBrainsMono Nerd Font'
 START = '# >>> cachyos-zsh-font'
 END = '# <<< cachyos-zsh-font'
@@ -36,6 +37,24 @@ class Refused(RuntimeError):
 
 def info(message):
     print(message, file=sys.stderr)
+
+
+def preview_file(entry):
+    state = entry['before']['kind']
+    if matches(Path(entry['target']), wanted(entry)):
+        label, color = 'Conforme', '32'
+    elif entry['method'] == 'stow':
+        label, color = 'À lier', '36'
+    elif state == 'missing':
+        label, color = 'À créer', '36'
+    else:
+        label, color = 'À remplacer', '33'
+    label = f'{label:<13}'
+    if (sys.stderr.isatty() and not os.environ.get('NO_COLOR')
+            and os.environ.get('TERM', 'dumb') != 'dumb'):
+        label = f'\033[{color}m{label}\033[0m'
+    states = {'missing': 'absent', 'file': 'fichier', 'link': 'lien'}
+    info(f'  {label} {entry["target"]} (avant : {states[state]})')
 
 
 def digest(data):
@@ -126,11 +145,16 @@ def prepare(args):
     modules = args.packages.split(',')
     if not modules or len(set(modules)) != len(modules) or any(module not in MODULES for module in modules):
         raise Refused('Liste de paquets vide, inconnue ou dupliquée.')
+    palette = getattr(args, 'palette', 'mocha')
+    if palette not in STARSHIP_PALETTES:
+        raise Refused('Variante Catppuccin inconnue : ' + palette)
     files, seen = [], set()
     for module in modules:
         if module in PACKAGE_ONLY:
             continue
         base = repo / 'Dotfiles' / module
+        # Variante propre au compte : un lien Stow partagerait la palette du dépôt.
+        method = 'copy' if module == 'starship' and palette != 'mocha' else args.mode
         if not base.is_dir() or base.is_symlink():
             raise Refused('Paquet source absent ou symbolique : ' + str(base))
         for source in sorted(base.rglob('*')):
@@ -154,12 +178,22 @@ def prepare(args):
             before = signature(target)
             if before['kind'] == 'link' and target.resolve() != source.resolve():
                 raise Refused('Lien externe conservé, migration manuelle requise : ' + str(target))
-            content = source.read_bytes()
+            source_content = content = source.read_bytes()
+            if module == 'starship' and relative == Path('.config/starship.toml') and palette != 'mocha':
+                palette_name = f'catppuccin_{palette}'
+                template = content.decode('utf-8')
+                if f'[palettes.{palette_name}]' not in template:
+                    raise Refused('Variante absente du thème Starship : ' + palette_name)
+                rendered, count = re.subn(r'^palette = "catppuccin_mocha"$',
+                                          f'palette = "{palette_name}"', template, flags=re.M)
+                if count != 1:
+                    raise Refused('Sélecteur de palette Starship introuvable ou dupliqué.')
+                content = rendered.encode('utf-8')
             if args.mode == 'copy' and module in ('kitty', 'foot') and before['kind'] != 'missing':
                 content = terminal_font(target.read_bytes(), module)
             files.append({'target': str(target), 'source': str(source), 'module': module,
-                          'content': content.hex(), 'source_hash': digest(source.read_bytes()),
-                          'before': before, 'method': args.mode})
+                          'content': content.hex(), 'source_hash': digest(source_content),
+                          'before': before, 'method': method})
     if 'zsh' in modules:
         target = config / 'cachyos-zsh/install-settings.zsh'
         check_parents(target, home)
@@ -269,11 +303,10 @@ def restore_files(session, journal, finish=True):
 
 def deploy(args):
     plan, token = prepare(args)
+    stow_modules = list(dict.fromkeys(entry['module'] for entry in plan['files'] if entry['method'] == 'stow'))
     if args.command == 'preview':
         for entry in plan['files']:
-            state = entry['before']['kind']
-            action = 'déjà conforme' if matches(Path(entry['target']), wanted(entry)) else entry['method']
-            info(f"[{action}] {entry['target']} (état initial : {state})")
+            preview_file(entry)
         if any(module in plan['modules'] for module in ('kitty', 'foot')):
             info('Police : JetBrainsMono Nerd Font pour les terminaux choisis. En copie, les autres réglages sont conservés ; en Stow, les configurations canoniques sont liées après sauvegarde.')
         if any(entry['module'] == 'delta' and entry['source'] is None for entry in plan['files']):
@@ -283,7 +316,7 @@ def deploy(args):
     if token != args.expected:
         raise Refused('Sources ou cibles modifiées depuis le plan approuvé ; relancer la préparation.')
     validate_zsh(plan)
-    if args.mode == 'stow' and not shutil.which('stow'):
+    if stow_modules and not shutil.which('stow'):
         raise Refused('GNU Stow absent ; aucune configuration modifiée.')
     home = Path(plan['home'])
     state_root = Path(os.path.abspath(args.state_root))
@@ -328,8 +361,7 @@ def deploy(args):
                     atomic_bytes(target, bytes.fromhex(entry['content']), entry['before'].get('mode', 0o600))
                 elif target.exists() or target.is_symlink():
                     target.unlink()
-            stow_modules = [module for module in plan['modules'] if module not in PACKAGE_ONLY]
-            if args.mode == 'stow' and stow_modules:
+            if stow_modules:
                 command = ['stow', '--dir=' + str(Path(args.repo).resolve() / 'Dotfiles'),
                            '--target=' + str(home), '--no-folding', '--verbose']
                 for operation in (['--simulate', '--stow'], ['--stow']):
@@ -381,6 +413,7 @@ def main():
         item.add_argument('--fzf-source', default='')
         item.add_argument('--replace-commands', choices=('true', 'false'), default='false')
         item.add_argument('--use-theme', choices=('true', 'false'), default='true')
+        item.add_argument('--palette', choices=STARSHIP_PALETTES, default='mocha')
         if name == 'deploy':
             item.add_argument('--expected', required=True)
             item.add_argument('--state-root', required=True)

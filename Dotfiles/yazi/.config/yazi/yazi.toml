@@ -14,3 +14,22 @@ wrap = "no"
 tab_size = 4
 max_width = 1200
 max_height = 900
+
+# Utiliser l'éditeur choisi s'il existe, puis les éditeurs installés.
+[opener]
+edit = [
+  { run = '''
+if [ -n "${EDITOR:-}" ] && command -v "$EDITOR" >/dev/null 2>&1; then
+    exec "$EDITOR" %s
+fi
+for editor in micro nano nvim vim vi; do
+    if command -v "$editor" >/dev/null 2>&1; then
+        exec "$editor" %s
+    fi
+done
+printf 'Aucun éditeur texte trouvé. Définissez EDITOR vers un éditeur installé.\n' >&2
+printf 'Appuyez sur Entrée pour revenir à Yazi…' >&2
+IFS= read -r reply
+exit 127
+''', block = true, desc = "Modifier dans un éditeur texte", for = "unix" },
+]

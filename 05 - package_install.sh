@@ -24,7 +24,7 @@ GROUP_UTILITAIRES=(
       #openrgb
       qbittorrent
       transmission-qt
-      lshw
+      #lshw
       fwupd
       timeshift
       7zip
@@ -68,6 +68,8 @@ GROUP_INTERNET=(
       brave-origin-bin
       #helium-browser-bin
       #zen-browser-bin
+      floorp-bin
+      waterfox-bin
 
 )
 
@@ -187,12 +189,24 @@ append_group() {
 }
 
 
-info() { printf '%s\n' "$*"; }
-fatal() { printf 'Erreur : %s\n' "$1" >&2; exit "${2:-1}"; }
+# Présentation du plan et du bilan dans le terminal.
+CYAN='' BOLD='' GREEN='' YELLOW='' RED='' RESET='' ERROR_RESET=''
+if [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
+  if [[ -t 1 ]]; then
+    CYAN='\033[1;36m' BOLD='\033[1m' GREEN='\033[32m' YELLOW='\033[33m' RESET='\033[0m'
+  fi
+  if [[ -t 2 ]]; then RED='\033[1;31m' ERROR_RESET='\033[0m'; fi
+fi
+info() { printf '  %s\n' "$*"; }
+ok() { printf '  %bOK%b  %s\n' "$GREEN" "$RESET" "$*"; }
+warn() { printf '  %bAttention%b  %s\n' "$YELLOW" "$RESET" "$*"; }
+error() { printf '  %bErreur%b  %s\n' "$RED" "$ERROR_RESET" "$*" >&2; }
+fatal() { error "$1"; exit "${2:-1}"; }
+step() { printf '\n%b── %s/%s  %s%b\n' "$CYAN" "$1" "$STEPS" "$2" "$RESET"; }
 
 show_help() {
   cat <<'EOF'
-Usage : bash "08 - package_install.sh" [--list | --dry-run] [--groups LISTE]
+Usage : bash "05 - package_install.sh" [--list | --dry-run] [--groups LISTE]
 
   --help, -h   Afficher cette aide, sans privilèges ni contrôle système.
   --list-groups Afficher les groupes disponibles, sans contrôle système.
@@ -264,6 +278,10 @@ trap 'on_exit $?' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+STEPS=4
+printf '%bCachyOS · Paquets natifs%b\n' "$BOLD" "$RESET"
+if $DRY_RUN; then STEPS=3; info 'Mode : simulation'; fi
+step 1 'Vérifier les prérequis'
 [[ $(uname -s) == Linux ]] || fatal 'Ce script nécessite CachyOS Linux.'
 [[ -r /etc/os-release ]] || fatal '/etc/os-release est introuvable.'
 OS_ID=$(awk -F= '$1 == "ID" {gsub(/["\047]/, "", $2); print $2}' /etc/os-release)
@@ -316,10 +334,10 @@ resolve_packages() {
   (( missing == 0 )) || fatal "$missing paquet(s) introuvable(s). Aucune installation ; aucun recours à l'AUR."
 }
 
+step 2 'Examiner les paquets et leurs dépôts'
 resolve_packages
-info ''
 info "${#PACKAGES[@]} paquets demandés. Les dépendances et mises à jour seront détaillées par Pacman."
-info 'Action : mise à jour complète du système et installation des paquets manquants.'
+warn 'La transaction met à jour tout le système et installe les paquets manquants.'
 info 'Inventaire privé avant/après ; aucun nettoyage du cache.'
 info 'Les Dotfiles, services, permissions utilisateur et réglages Niri ne sont pas configurés par ce script.'
 info 'Les scripts et hooks propres aux paquets peuvent modifier le système pendant la transaction.'
@@ -327,11 +345,13 @@ printf 'Commande :'
 printf ' %q' pacman -Syu --needed "${TARGETS[@]}"
 printf '\n'
 if $DRY_RUN; then
-  info 'Simulation terminée : aucun fichier écrit et aucune installation effectuée.'
+  step 3 'Bilan de la simulation'
+  ok 'Simulation terminée : aucun fichier écrit et aucune installation effectuée.'
   info 'Disponibilité constatée dans les bases locales ; versions finales vérifiées par la transaction réelle.'
   exit 0
 fi
 
+step 3 'Confirmer et lancer la transaction Pacman'
 [[ -t 0 && -t 1 ]] || fatal 'Exécution réelle refusée sans terminal interactif. Utiliser --dry-run pour examiner.'
 SUDO=()
 if [[ $EUID -ne 0 ]]; then
@@ -341,8 +361,7 @@ fi
 for tool in mktemp chmod; do
   command -v "$tool" >/dev/null 2>&1 || fatal "Commande requise absente : $tool."
 done
-info 'Une mise à jour ne peut pas être annulée avec une simple liste de paquets.'
-info 'Pour un retour système complet, prévoir une sauvegarde ou un instantané avant de continuer.'
+warn 'Prévoir une sauvegarde ou un instantané pour un retour système complet.'
 printf 'Autoriser la création de l’inventaire et la transaction décrite ? [o/N] '
 IFS= read -r answer || fatal 'Confirmation non reçue.'
 case "$answer" in
@@ -399,6 +418,7 @@ if [[ $EUID -eq 0 ]]; then
 else
   "${SUDO[@]}" pacman -Syu --needed "${TARGETS[@]}" || status=$?
 fi
+step 4 'Vérifier la transaction et afficher le bilan'
 pacman -Q > "$SNAPSHOT/paquets-apres.txt" || fatal 'Lecture de l’état final impossible ; vérifier le journal Pacman.'
 (( status == 0 )) || fatal 'La transaction Pacman a échoué ou a été annulée. Aucun succès annoncé.' "$status"
 
@@ -413,6 +433,6 @@ for package in "${PACKAGES[@]}"; do
   fi
 done
 (( missing == 0 )) || fatal "$missing paquet(s) demandé(s) absent(s) après la transaction."
-info "Transaction terminée : ${#PACKAGES[@]} paquets demandés présents, dont $new_count nouvellement installés."
+ok "Transaction terminée : ${#PACKAGES[@]} paquets demandés présents, dont $new_count nouvellement installés."
 info "Inventaires et versions avant/après : $SNAPSHOT"
 info 'Les autres changements du système sont consignés par Pacman. Cache conservé.'

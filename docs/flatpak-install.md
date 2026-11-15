@@ -1,33 +1,44 @@
 # Applications Flatpak personnelles
 
-Le script `09 - flatpak_install.sh` installe les 13 applications sélectionnées
+Le script `06 - flatpak_install.sh` installe les 13 applications sélectionnées
 depuis Flathub, dans leur branche `stable` et pour l'architecture de l'hôte.
 Il se lance **sans sudo**, dans la session du compte concerné. Toutes les
 commandes portant sur une installation utilisent explicitement `--user`.
 
 ```bash
-bash "09 - flatpak_install.sh" --help
-bash "09 - flatpak_install.sh" --list
-bash "09 - flatpak_install.sh" --dry-run
+bash "06 - flatpak_install.sh" --help
+bash "06 - flatpak_install.sh" --list
+bash "06 - flatpak_install.sh" --dry-run
 ```
 
-L'aide et la liste ne nécessitent pas Flatpak. La simulation exige Linux,
-Flatpak, Distrobox et Podman déjà disponibles. Ces deux derniers sont les
-prérequis hôte de BoxBuddy, déjà prévus dans le script de paquets ; le script
-Flatpak ne les installe pas et ne modifie pas leur configuration.
-Les deux paquets sont actifs dans `08 - package_install.sh` (62 paquets au total).
-Le paquet `flatpak` n'y figure pas : vérifier sa présence avant cette étape.
+L’aide et la liste fonctionnent sans Flatpak. Sur CachyOS, les prérequis
+natifs sont contrôlés avec Pacman et seuls les paquets manquants sont proposés.
 
-Les [paquets natifs](package-install.md) proviennent des dépôts Pacman ; les
-applications de ce guide proviennent du dépôt personnel Flathub. Aucun des deux
-scripts ne déploie les configurations [Dotfiles](../Dotfiles/README.md).
+| Fonction | Prérequis sur l’hôte |
+| --- | --- |
+| Installation et intégration des applications | `flatpak`, `xdg-desktop-portal` |
+| BoxBuddy | `distrobox` et `podman` |
+| Easy Effects | `pipewire-audio` et un gestionnaire de session PipeWire. WirePlumber est proposé si nécessaire, en conservant l’ancien PipeWire Media Session s’il est installé. |
+| Session Niri détectée | Portails GTK et GNOME, plus GNOME Keyring si le portail Secret d’oo7 est absent. |
+
+Lancer le script depuis Niri pour inclure ses portails. Pour un autre bureau,
+le portail générique est vérifié et les portails spécifiques restent ceux
+du bureau. Le script prépare les paquets. L’audio de la session, les identifiants
+subordonnés de Podman et les services D-Bus effectifs peuvent demander une
+vérification dans le compte utilisateur. [Portails de Niri](https://github.com/niri-wm/niri/wiki/Important-Software#portals) ·
+[Easy Effects](https://github.com/wwmm/easyeffects) · [Distrobox](https://distrobox.it/)
+
+Distrobox et Podman figurent aussi parmi les 62 paquets du
+[script 05](package-install.md). Les applications de ce guide proviennent du
+dépôt personnel Flathub.
 
 ## Simulation et confirmations
 
-La simulation consulte uniquement l'architecture, les dépôts personnels et les
-applications personnelles installées. Elle affiche les installations et les
-vérifications de mise à jour prévues. Elle ne crée aucun inventaire, ne télécharge
-rien, n'ajoute pas Flathub et ne nettoie rien. Elle n'annonce aucun faux succès.
+La simulation consulte les bases Pacman locales. Si Flatpak est disponible,
+elle lit aussi l’architecture, les dépôts personnels et les applications
+installées. Sinon, elle présente la liste des applications et reporte la
+lecture de leur état après l’installation de Flatpak. Elle ne crée aucun
+inventaire et ne télécharge rien.
 
 La disponibilité distante et les versions nouvelles ne sont pas vérifiées dans
 ce mode. L'option Flatpak `--cached` préfère les informations locales, sans
@@ -37,14 +48,20 @@ simulation réseau. Voir la [référence officielle Flatpak](https://docs.flatpa
 Pour une exécution souhaitée sur la machine Linux :
 
 ```bash
-bash "09 - flatpak_install.sh"
+bash "06 - flatpak_install.sh"
 # Variante : proposer aussi le nettoyage à la fin.
-bash "09 - flatpak_install.sh" --cleanup
+bash "06 - flatpak_install.sh" --cleanup
 ```
 
-Un terminal interactif est obligatoire. Après l'aperçu des applications et des
-effets, une confirmation autorise la création de l'inventaire, l'accès réseau,
-les écritures de cache, l'ajout éventuel du dépôt et les transactions proposées.
+Après l’installation, `flatpak list --user --app` affiche les applications du
+compte. Lancer une application depuis le menu ou avec
+`flatpak run IDENTIFIANT`, en utilisant son identifiant dans la liste ci-dessous.
+
+Un terminal interactif est obligatoire. Si des prérequis natifs manquent,
+la première confirmation autorise `sudo pacman -Syu --needed` et l’inventaire
+des paquets. La mise à jour concerne tout le système et utilise les dépôts
+actifs affichés. Une seconde confirmation porte sur les opérations personnelles
+Flathub. Si elle est refusée, les paquets natifs installés restent présents.
 L'état local est relu après cette attente ; un changement de dépôts ou
 d'applications invalide l'aperçu. Les confirmations natives Flatpak sont conservées,
 sans `-y`, sans `--noninteractive` et sans tentative répétée automatiquement.
@@ -80,7 +97,7 @@ Les origines, commits et présences sont contrôlés après chaque transaction.
 ## Nettoyage et bilan
 
 Aucun nettoyage par défaut. Avec `--cleanup`, si aucune installation ou mise à
-jour n'a échoué, une seconde confirmation propose
+jour n'a échoué, une confirmation séparée propose
 `flatpak uninstall --user --unused`. Le dialogue natif affiche les éléments
 concernés et permet de refuser. Une erreur ou annulation signalée par Flatpak
 est conservée comme telle, sans être présentée comme une absence de runtimes.
@@ -96,7 +113,9 @@ est bloquant. Aucun succès global n'est annoncé après une erreur détectée.
 Après accord, un dossier privé de mode `0700` est créé sous
 `/var/tmp/cachyos-flatpak.XXXXXXXX`. Il conserve les dépôts avant/après, les
 références (applications, runtimes et extensions), origines et commits abrégés,
-la sélection et les nouvelles applications vérifiées. En cas d'échec précoce,
+la sélection et les nouvelles applications vérifiées. Si Pacman est utilisé,
+les fichiers `paquets-hote-avant.txt` et `paquets-hote-apres.txt` détaillent la
+transaction native. En cas d'échec précoce,
 seuls les fichiers déjà produits sont disponibles. Ce dossier contient un guide
 de diagnostic et de retrait manuel des nouvelles références.
 
@@ -110,7 +129,7 @@ données. Cette opération n'annule pas une mise à jour d'application existante
 ## Validation
 
 ```bash
-bash -n "09 - flatpak_install.sh"
+bash -n "06 - flatpak_install.sh"
 python3 -B -m unittest discover -s tests -p test_flatpak_install.py -v
 ```
 

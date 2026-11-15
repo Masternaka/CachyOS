@@ -66,23 +66,23 @@ L'opacité active est `0.85`. Le curseur est explicitement surchargé par
 - **Contrôle distant** : Activé (`allow_remote_control yes`)
 - **Fermeture** : Pas de confirmation (`confirm_os_window_close 0`)
 
-## ⌨️ Raccourcis clavier
+## Raccourcis clavier
 
-Les lignes `map` de `kitty.conf` sont actuellement commentées. Les exemples
-ci-dessous décrivent les actions envisagées, pas des raccourcis activés par ce
-fichier. Les raccourcis effectifs dépendent des valeurs par défaut de Kitty et
-des autres réglages chargés. Vérifier les conflits avec Niri avant d'en activer.
+Les exemples `map` du dépôt sont commentés. Les touches ci-dessous sont les
+raccourcis Linux par défaut de Kitty et peuvent être surchargées localement.
+[Référence Kitty](https://sw.kovidgoyal.net/kitty/conf/#keyboard-shortcuts)
 
 ### Gestion des onglets
 - `Ctrl+Tab` : Onglet suivant
 - `Ctrl+Shift+Tab` : Onglet précédent
 - `Ctrl+Shift+T` : Nouvel onglet
-- `Ctrl+Shift+W` : Fermer l'onglet
+- `Ctrl+Maj+Q` ferme l’onglet
 
-### Split de fenêtre
-- `Ctrl+Shift+D` : Split horizontal
-- `Ctrl+Shift+E` : Split vertical
-- `Ctrl+Shift+Flèches` : Navigation entre splits
+### Panneaux et disposition
+
+- `Ctrl+Maj+Entrée` ouvre un panneau Kitty dans l’onglet actif
+- `Ctrl+Maj+W` ferme le panneau actif
+- `Ctrl+Maj+L` change de disposition
 
 ### Navigation et scroll
 - `Ctrl+Shift+Haut/Bas` : Ligne par ligne
@@ -96,13 +96,15 @@ des autres réglages chargés. Vérifier les conflits avec Niri avant d'en activ
 ### Taille de police
 - `Ctrl+Shift+Plus` : Augmenter la police (+2.0pt)
 - `Ctrl+Shift+Moins` : Diminuer la police (-2.0pt)
-- `Ctrl+Shift+0` : Réinitialiser la taille
+- `Ctrl+Maj+Retour arrière` réinitialise la taille
 - `Ctrl+Shift+KP_Add` : Augmenter (pavé numérique)
 - `Ctrl+Shift+KP_Subtract` : Diminuer (pavé numérique)
 
 ### Autres
 - `Ctrl+Shift+F11` : Plein écran
 - `Ctrl+Shift+F2` : Éditer la configuration
+- `Ctrl+Maj+F3` affiche la palette d’actions
+- `Ctrl+Maj+F5` recharge la configuration
 
 ## Linux et Niri
 
@@ -176,7 +178,7 @@ map vos+raccourcis votre_commande
 
 ## Installation et déploiement sur CachyOS
 
-`08 - package_install.sh` propose Kitty et la police depuis les dépôts natifs,
+`05 - package_install.sh` propose Kitty et la police depuis les dépôts natifs,
 sans déployer les fichiers. `04 - install_zsh.sh` sait installer ces dépendances
 et déployer le module `kitty`, après confirmations :
 

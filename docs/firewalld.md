@@ -14,6 +14,10 @@ dépôts configurés et présente sa transaction avant installation.
 [Gufw](https://packages.cachyos.org/package/extra/any/gufw) ·
 [Firewall Config](https://packages.cachyos.org/package/extra/any/firewall-config)
 
+Dans le premier menu, choisir `0` pour conserver les états, `1` pour UFW ou
+`2` pour firewalld. Dans le second, choisir `0` pour passer l’installation,
+`1` pour Gufw ou `2` pour Firewall Config. Entrée choisit `0`.
+
 Après autorisation sur la cible, ouvrir le menu avec `sudo bash` depuis un accès
 local. L’arrêt peut couper une connexion ou laisser la machine sans l’un de ces
 deux pare-feu actifs. Le menu présente les commandes et demande confirmation.
@@ -54,7 +58,7 @@ pas les affectations explicites des interfaces ou des profils NetworkManager.
 Depuis un accès local, examiner les zones actives avant d'autoriser l'application.
 Une connexion distante peut être interrompue pendant un changement de zone.
 
-## Application et retour arrière
+## Appliquer les règles et revenir en arrière
 
 Après autorisation sur la cible, utiliser `sudo bash` avec les mêmes options et
 sans `--dry-run`. Le script demande confirmation puis relit le plan ; tout écart

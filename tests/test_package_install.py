@@ -16,7 +16,7 @@ import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / '08 - package_install.sh'
+SCRIPT = ROOT / '05 - package_install.sh'
 FAKE = r'''
 import json, os, sys, tempfile
 from pathlib import Path

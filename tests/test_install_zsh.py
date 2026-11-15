@@ -119,7 +119,7 @@ class InstallZshTests(unittest.TestCase):
         self.bin = self.root / 'bin'; self.bin.mkdir()
         fake = self.root / 'fake'; fake.write_text('#!' + sys.executable + '\n' + FAKE); fake.chmod(0o755)
         for name in ['id', 'getent', 'flock', 'pacman', 'sudo', 'zsh', 'starship', 'chsh', 'fzf', 'zoxide', 'git',
-                     'yazi', 'btop', 'tldr', 'bat', 'eza', 'rg', 'fd', 'delta', 'lazygit', 'kitty', 'foot', 'duf', 'fc-match', 'stow']:
+                     'yazi', 'micro', 'btop', 'tldr', 'bat', 'eza', 'rg', 'fd', 'delta', 'lazygit', 'kitty', 'foot', 'duf', 'fc-match', 'stow']:
             (self.bin / name).symlink_to(fake)
         (self.root / 'shell').write_text('/bin/bash')
         self.shells.write_text(str(self.bin / 'zsh') + '\n/bin/bash\n')

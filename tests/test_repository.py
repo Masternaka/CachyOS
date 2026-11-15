@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class RepositoryTests(unittest.TestCase):
     def test_native_catalogue_matches_documentation(self):
-        packages = subprocess.check_output(['bash', str(ROOT / '08 - package_install.sh'), '--list'], text=True).splitlines()
+        packages = subprocess.check_output(['bash', str(ROOT / '05 - package_install.sh'), '--list'], text=True).splitlines()
         text = (ROOT / 'docs/package-install.md').read_text()
         catalogue = text.split('### Catalogue actuel\n', 1)[1].split('## Provenance', 1)[0]
         rows = re.findall(r'^\| `[^`]+` \| (.*?) \|$', catalogue, re.M)

@@ -93,7 +93,7 @@ Chaque module utilise des icônes Nerd Font pour une meilleure présentation :
 
 ## Installation sur CachyOS et déploiement Stow
 
-Le paquet natif `fastfetch` est sélectionné dans `08 - package_install.sh`.
+Le paquet natif `fastfetch` est sélectionné dans `05 - package_install.sh`.
 Il passe par les dépôts officiels activés et les confirmations de ce script ;
 aucun recours à l'AUR n'est nécessaire dans ce parcours. L'installation du
 logiciel ne déploie pas ce fichier de configuration.

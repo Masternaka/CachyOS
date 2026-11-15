@@ -233,13 +233,13 @@ run_interactive() {
   step 1 'Détecter les pare-feu'
   detect_firewalls
   before=$(describe_firewalls)
-  printf '%s\n' "$before"
+  while IFS= read -r answer; do info "$answer"; done <<< "$before"
   if [[ "$UFW_RULES" == indéterminé ]]; then
     warn 'Le statut des règles UFW peut nécessiter les droits root, même en simulation.'
   fi
   step 2 'Choisir la désactivation et l’interface graphique'
   printf '%s\n' '  0  Garder les deux états actuels' '  1  Désactiver UFW' '  2  Désactiver firewalld'
-  printf 'Pare-feu à désactiver [0] : '
+  printf '%bPare-feu à désactiver [0] :%b ' "$BOLD" "$RESET"
   IFS= read -r answer || fatal 'Choix du pare-feu non reçu.'
   case "$answer" in
     ''|0) ;;
@@ -248,7 +248,7 @@ run_interactive() {
     *) fatal 'Choisissez 0, 1 ou 2 pour le pare-feu.' ;;
   esac
   printf '%s\n' '  0  Passer cette étape' '  1  Gufw (UFW)' '  2  Firewall Config (firewalld)'
-  printf 'Interface à installer [0] : '
+  printf '%bInterface à installer [0] :%b ' "$BOLD" "$RESET"
   IFS= read -r answer || fatal 'Choix de l’interface non reçu.'
   case "$answer" in
     ''|0) ;;
@@ -299,7 +299,7 @@ run_interactive() {
     REPORT+=('Actions prévues affichées à l’étape 3. Aucune modification appliquée.')
   else
     [[ $EUID -eq 0 ]] || fatal 'Application avec sudo requise ; examinez d’abord --interactive --dry-run.'
-    printf 'Autoriser les actions annoncées ? [o/N] '
+    printf '%bAutoriser les actions annoncées ? [o/N]%b ' "$BOLD" "$RESET"
     IFS= read -r answer || fatal 'Confirmation non reçue.'
     case "$answer" in
       o|O|oui|OUI) ;;
@@ -354,7 +354,7 @@ fi
 
 step 1 'Vérifier les prérequis firewalld'
 command -v firewall-cmd >/dev/null ||
-  fatal 'Commande absente : firewall-cmd. Préparer les paquets avec 08 - package_install.sh --groups securite.'
+  fatal 'Commande absente : firewall-cmd. Préparer les paquets avec 05 - package_install.sh --groups securite.'
 read_units() {
   local fw ufw
   fw=$(systemctl show firewalld.service --property=LoadState,ActiveState) || fatal 'Lecture de firewalld impossible.'

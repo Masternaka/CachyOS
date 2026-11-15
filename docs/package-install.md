@@ -1,6 +1,6 @@
 # Installation des logiciels
 
-Le script `08 - package_install.sh` propose 62 paquets par défaut et installe la
+Le script `05 - package_install.sh` propose 62 paquets par défaut et installe la
 sélection dans une seule transaction `pacman -Syu --needed dépôt/paquet…`, après
 confirmation.
 Il remplace l'ancien client `tldr` par `tealdeer`, déjà configuré par le script Zsh.
@@ -10,12 +10,12 @@ Distrobox et Podman sont maintenant actifs dans la liste pour préparer BoxBuddy
 ## Examiner puis exécuter
 
 ```bash
-bash "08 - package_install.sh" --help
-bash "08 - package_install.sh" --list
+bash "05 - package_install.sh" --help
+bash "05 - package_install.sh" --list
 # Sur la machine CachyOS : contrôle en lecture seule.
-bash "08 - package_install.sh" --dry-run
+bash "05 - package_install.sh" --dry-run
 # Seulement lorsque l'installation est souhaitée :
-bash "08 - package_install.sh"
+bash "05 - package_install.sh"
 ```
 
 L'aide et la liste fonctionnent sans Linux ni privilèges. La simulation nécessite
@@ -36,10 +36,10 @@ Avec `--needed`, un paquet déjà à jour n'est pas réinstallé. Une version pl
 récente est installée pendant la mise à jour complète. `-Syu` met également à
 jour les paquets du système qui ne font pas partie des cibles sélectionnées.
 
-`distrobox` et `podman` sont installés sur l'hôte par cette liste. Le
-[script Flatpak](flatpak-install.md) vérifie ensuite leur présence pour BoxBuddy,
-sans les réinstaller. Le paquet `flatpak` lui-même ne fait pas partie de cette
-liste : il doit déjà être disponible avant d'utiliser ce second script.
+`distrobox` et `podman` font partie du groupe `virtualisation`. Le
+[script Flatpak](flatpak-install.md) les propose aussi pour BoxBuddy lorsqu’ils
+manquent, ainsi que Flatpak. Le [script QEMU](qemu.md) complète les paquets
+de virtualisation et configure libvirt si tu veux utiliser Virt-Manager.
 
 ## Choisir les groupes
 
@@ -47,15 +47,20 @@ Sans `--groups`, la sélection complète existante est conservée. Les groupes s
 combinent avec `--list` et `--dry-run`, sans appel système pour la liste :
 
 ```bash
-bash "08 - package_install.sh" --list-groups
-bash "08 - package_install.sh" --groups virtualisation,terminal --list
-bash "08 - package_install.sh" --groups virtualisation,terminal --dry-run
+bash "05 - package_install.sh" --list-groups
+bash "05 - package_install.sh" --groups virtualisation,terminal --list
+bash "05 - package_install.sh" --groups virtualisation,terminal --dry-run
 ```
 
 Après autorisation de l'installation sur la cible, retirer `--dry-run`. Même avec
 un seul groupe, la transaction `-Syu` met à jour tout le système. Aucun groupe ne
 configure les services ou les applications. La sélection de `langues` ne force
 pas le groupe `internet` ; Pacman décide des dépendances réelles.
+
+Le bilan affiche combien de paquets demandés sont présents et combien viennent
+d’être installés. En cas de refus ou d’échec, regarder le premier diagnostic
+et l’emplacement de l’inventaire s’il a été créé. Un dépôt tiers actif,
+dont [master-archrepo](master-archrepo.md), arrête le contrôle de provenance.
 
 ### Catalogue actuel
 
@@ -174,7 +179,7 @@ changements sont détaillés dans les inventaires et le journal Pacman.
 ## Validation
 
 ```bash
-bash -n "08 - package_install.sh"
+bash -n "05 - package_install.sh"
 python3 -B -m unittest discover -s tests -p test_package_install.py -v
 ```
 

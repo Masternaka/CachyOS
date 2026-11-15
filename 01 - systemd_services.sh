@@ -201,7 +201,9 @@ else
   step 2 'Inspecter et configurer les unités'
 fi
 warn 'Les timers peuvent déclencher leurs tâches dès leur démarrage selon leur configuration.'
+unit_number=0
 for unit in "${UNITS[@]}"; do
+  unit_number=$((unit_number + 1))
   case "$unit" in
     bluetooth.service) description='Bluetooth' ;;
     sshd.service) description='Serveur SSH (OpenSSH)' ;;
@@ -209,7 +211,7 @@ for unit in "${UNITS[@]}"; do
     paccache.timer) description='Nettoyage périodique du cache Pacman' ;;
     *) description='Unité systemd' ;;
   esac
-  printf '\n%b%s%b · %s\n' "$BOLD" "$description" "$RESET" "$unit"
+  printf '\n%b[%s/%s] %s%b · %s\n' "$BOLD" "$unit_number" "${#UNITS[@]}" "$description" "$RESET" "$unit"
   if ! enable_unit "$unit"; then
     FAILURES=$((FAILURES + 1))
   fi

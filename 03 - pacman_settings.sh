@@ -132,6 +132,11 @@ if [[ "$MODE" == value ]]; then normalize_value; fi
 # Vérifier les permissions et les dépendances avant de modifier quoi que ce soit.
 if ! $SILENT_MODE; then printf '%bCachyOS · Réglages de Pacman%b\n' "$BOLD" "$RESET" >&2; fi
 if $DRY_RUN; then dry 'Aucune modification ne sera appliquée.'; fi
+case "$MODE" in
+    value) detail 'Mode' "Valeur manuelle ($VALUE)" ;;
+    auto) detail 'Mode' 'Estimation CPU/RAM' ;;
+    restore) detail 'Mode' 'Restauration d’une sauvegarde' ;;
+esac
 step 1 'Vérifier les prérequis'
 if ! $DRY_RUN && [[ $EUID -ne 0 ]]; then
     fatal 'Exécutez avec sudo pour appliquer ; utilisez --dry-run pour examiner.'

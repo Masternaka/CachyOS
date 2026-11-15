@@ -16,7 +16,7 @@ import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / '09 - flatpak_install.sh'
+SCRIPT = ROOT / '06 - flatpak_install.sh'
 FAKE = r'''
 import json, os, sys, tempfile
 from pathlib import Path
@@ -28,6 +28,20 @@ if name == 'uname': print('Linux'); sys.exit(0)
 if name == 'mktemp':
     if c.get('snapshot_failure'): sys.exit(1)
     print(tempfile.mkdtemp(prefix='snapshot-', dir=root)); sys.exit(0)
+if name == 'sudo': os.execvp(args[0], args)
+if name == 'pacman-conf': print('core\nextra\ncachyos'); sys.exit(0)
+if name == 'pacman':
+    packages = ('flatpak', 'xdg-desktop-portal', 'distrobox', 'podman', 'pipewire-audio', 'wireplumber',
+                'xdg-desktop-portal-gtk', 'xdg-desktop-portal-gnome', 'gnome-keyring')
+    missing = c.get('host_missing', []) if not (root / 'host-installed').exists() else []
+    if args == ['-Qq']: print('\n'.join(pkg for pkg in packages if pkg not in missing)); sys.exit(0)
+    if args == ['-Q']: print('\n'.join(pkg + ' 1' for pkg in packages if pkg not in missing)); sys.exit(0)
+    if args == ['-Sl']: print('\n'.join('extra ' + pkg + ' 1' for pkg in packages)); sys.exit(0)
+    if args[0] == '-Syu':
+        if c.get('host_install_failure'): sys.exit(1)
+        (root / 'host-installed').touch()
+        sys.exit(0)
+    sys.exit(8)
 if name != 'flatpak': sys.exit(9)
 if args == ['--default-arch']: print('x86_64'); sys.exit(0)
 if '--user' not in args: sys.exit(99)
@@ -83,10 +97,10 @@ class FlatpakTests(unittest.TestCase):
         fake = self.root / 'fake'
         fake.write_text('#!' + sys.executable + '\n' + FAKE)
         fake.chmod(0o755)
-        for name in ('flatpak', 'uname', 'mktemp', 'distrobox', 'podman'):
+        for name in ('flatpak', 'uname', 'mktemp', 'distrobox', 'podman', 'pacman', 'pacman-conf', 'sudo'):
             (self.bin / name).symlink_to(fake)
         self.env = dict(os.environ, FLATPAK_FIXTURE=str(self.root),
-                        PATH=str(self.bin) + ':' + os.environ['PATH'])
+                        PATH=str(self.bin) + ':' + os.environ['PATH'], XDG_CURRENT_DESKTOP='')
         self.config = {}
         self.state = {'remote': True, 'apps': {}}
         lines = subprocess.check_output(['/bin/bash', str(SCRIPT), '--list'], text=True).splitlines()
@@ -138,6 +152,7 @@ class FlatpakTests(unittest.TestCase):
         self.assertEqual(self.operations(), [])
         self.assertFalse(list(self.root.glob('snapshot-*')))
         self.assertFalse(any(c[:2] == ['flatpak', 'remote-info'] for c in self.calls()))
+        self.assertFalse(any(c[:2] == ['pacman', '-Syu'] for c in self.calls()))
 
     def test_help_and_list_need_no_tools(self):
         for args in (('--help',), ('--list',)):
@@ -161,6 +176,22 @@ class FlatpakTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('disponibilité distante', result.stdout)
         self.assert_no_changes()
+
+    def test_dry_run_reports_missing_native_packages(self):
+        self.config['host_missing'] = ['flatpak', 'podman']
+        result = self.run_script('--dry-run')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('extra/flatpak extra/podman', result.stdout)
+        self.assert_no_changes()
+
+    def test_native_install_and_flatpak_have_separate_confirmation(self):
+        self.config['host_missing'] = ['podman']
+        result = self.run_script(terminal=True, answers=('o', 'n'))
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn(['pacman', '-Syu', '--needed', '--', 'extra/podman'], self.calls())
+        self.assertEqual(self.operations(), [])
+        snapshot, = self.root.glob('snapshot-*')
+        self.assertTrue((snapshot / 'paquets-hote-apres.txt').exists())
 
     def test_invalid_remote_is_blocking(self):
         self.config['url'] = 'https://example.org/repo/'

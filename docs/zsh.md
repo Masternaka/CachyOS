@@ -16,10 +16,22 @@ Depuis la racine du dépôt, utilisez la même commande dans Fish, Bash ou Zsh :
 bash "04 - install_zsh.sh" --interactive --dry-run
 ```
 
-Le menu propose le mode de déploiement, les modules, Starship et les alias Zsh.
+Le menu propose le mode de déploiement, les modules, la palette Starship et les alias Zsh.
 Il s’ouvre aussi en lançant le script via Bash sans argument dans un terminal.
 `q` quitte le menu avant toute application. `--dry-run` seul affiche directement
 le plan de la sélection par défaut.
+
+```bash
+bash "04 - install_zsh.sh" --check-scripts
+```
+
+Ce contrôle lit les scripts Bash à la racine du dépôt. En vert, le fichier
+est exécutable et passe `bash -n`. En rouge, il manque la permission
+d’exécution directe ou la syntaxe Bash est invalide. Un script lisible et
+syntaxiquement valide peut être lancé avec `bash "nom du script.sh"`.
+Le contrôle apparaît aussi dans le plan normal et ne change aucun droit.
+Les configurations du plan sont indiquées comme conformes, à créer, à lier ou
+à remplacer.
 
 La simulation lit les fichiers, les informations du compte et les bases locales de
 Pacman. Elle ne crée aucun lien, fichier, journal, sauvegarde ou cache et ne
@@ -91,9 +103,20 @@ Autres options :
 
 - `--no-theme` : ne pas déployer le module Starship et conserver la sélection du
   thème existant ; ses autres outils peuvent toujours être configurés.
+- `--palette mocha|macchiato|frappe|latte` : sélectionner la variante du thème
+  Catppuccin Powerline. Mocha est le choix par défaut. Le menu propose aussi de
+  conserver le thème actuel. Les variantes autres que Mocha produisent un
+  `starship.toml` propre au compte, sauvegardé comme une copie même si les autres
+  modules sont déployés en liens Stow. [Preset Starship](https://starship.rs/presets/catppuccin-powerline)
 - `--replace-commands` : activer les alias remplaçant les commandes usuelles
   (`ls`, `cat`, `less`, `cp`, `mv`, `rm`, etc.). Sans cette option, les raccourcis
   distincts comme `ll`, `ccat` et `dfh` sont utilisés.
+
+Pour prévisualiser uniquement Starship en Macchiato.
+
+```bash
+bash "04 - install_zsh.sh" --dry-run --only starship --palette macchiato
+```
 - `--extras` : option conservée pour compatibilité ; fd, Delta et Lazygit sont
   maintenant compris dans la sélection par défaut. `--only` permet de les exclure.
 
@@ -136,11 +159,28 @@ et FZF. La recherche par fragment est chargée après la coloration conformémen
 à ses instructions d'intégration.
 
 FZF, Zoxide, Eza et Ripgrep lisent leurs fragments ou variables d'environnement
-à travers le `.zshrc` commun. Starship utilise le même thème Catppuccin
-Powerline (Mocha) en copie et avec Stow, via `~/.config/starship.toml`.
+à travers le `.zshrc` commun. Starship utilise le thème Catppuccin
+Powerline via `~/.config/starship.toml`.
 Le dossier, Git et l’horloge apparaissent sur la première ligne. La durée
 s’affiche à partir de deux secondes et la flèche indique le résultat sur la
 ligne suivante. Les séparateurs et les icônes utilisent la Nerd Font du terminal.
+
+### Ouvrir un fichier texte dans Yazi
+
+Dans Yazi, `Entrée` ouvre le fichier sélectionné et `O` affiche les choix
+d’ouverture. Le script 04 inclut Micro lorsque le module Yazi est sélectionné
+et propose son installation après confirmation s’il manque. Pour un fichier
+texte, la configuration essaie l’exécutable indiqué par `EDITOR`, puis
+`micro`, `nano`, `nvim`, `vim` ou `vi` dans cet ordre. Le code `127` du lanceur d’origine signale généralement que
+l’éditeur demandé est introuvable, souvent `vi` lorsque `EDITOR` est vide.
+[FAQ Yazi](https://yazi-rs.github.io/docs/faq/#why-cant-i-edit-text-files)
+
+Pour choisir Micro pour une session de Yazi s’il est installé.
+
+```bash
+type -a micro
+env EDITOR=micro yazi
+```
 
 Les alias sont dans [Dotfiles/zsh/.config/cachyos-zsh/aliases.zsh](../Dotfiles/zsh/.config/cachyos-zsh/aliases.zsh),
 chargés avec `source` : navigation, fichiers, Git, système, réseau, `bt` pour btop

@@ -90,7 +90,7 @@ def main():
                 incomplete |= code != 0 or not output
                 print(unit + ' : ' + (output.replace('\n', '; ') if code == 0 else 'lecture impossible'))
         if shutil.which('pacman'):
-            code, output = read_command(['bash', str(REPO / '08 - package_install.sh'), '--list'])
+            code, output = read_command(['bash', str(REPO / '05 - package_install.sh'), '--list'])
             packages = output.splitlines() if code == 0 else []
             if not packages:
                 incomplete = True

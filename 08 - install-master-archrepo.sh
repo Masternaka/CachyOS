@@ -7,24 +7,39 @@ base=https://masternaka.github.io/master-archrepo
 server="$base/x86_64"
 config=/etc/pacman.conf
 
+CYAN='' BOLD='' GREEN='' YELLOW='' RED='' RESET='' ERROR_RESET=''
+if [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
+    if [[ -t 1 ]]; then
+        CYAN='\033[1;36m' BOLD='\033[1m' GREEN='\033[32m' YELLOW='\033[33m' RESET='\033[0m'
+    fi
+    if [[ -t 2 ]]; then RED='\033[1;31m' ERROR_RESET='\033[0m'; fi
+fi
+step() { printf '\n%b── %s/4  %s%b\n' "$CYAN" "$1" "$2" "$RESET"; }
+info() { printf '  %s\n' "$*"; }
+ok() { printf '  %bOK%b  %s\n' "$GREEN" "$RESET" "$*"; }
 fail() {
-    printf 'Erreur : %s\n' "$*" >&2
+    printf '  %bErreur%b  %s\n' "$RED" "$ERROR_RESET" "$*" >&2
     exit 1
 }
 
 if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
     cat <<'HELP'
-Usage : sudo bash scripts/install-master-archrepo.sh EMPREINTE_VERIFIEE
+Usage : sudo bash "08 - install-master-archrepo.sh" EMPREINTE_VERIFIEE
 
 Ajoute le dépôt public master-archrepo à pacman sur CachyOS x86_64.
 Fournir l’empreinte primaire OpenPGP complète obtenue auprès de la
 personne qui a créé la clé du dépôt. Les applications s’installent ensuite
 avec pacman.
+
+L’application modifie le trousseau Pacman et peut remplacer /etc/pacman.conf.
+Consulter docs/master-archrepo.md pour le fonctionnement et le retour arrière.
 HELP
     exit 0
 fi
 
 [[ $# -eq 1 ]] || fail 'Indiquez l’empreinte complète ou utilisez --help.'
+printf '%bCachyOS · Dépôt master-archrepo%b\n' "$BOLD" "$RESET"
+step 1 'Vérifier les prérequis et l’empreinte attendue'
 fingerprint="${1^^}"
 [[ "$fingerprint" =~ ^([A-F0-9]{40}|[A-F0-9]{64})$ ]] \
     || fail 'L’empreinte doit contenir 40 ou 64 caractères hexadécimaux, sans espaces.'
@@ -35,6 +50,8 @@ for command in curl gpg gpgv pacman-conf pacman-key awk grep mktemp cp cmp mv rm
 done
 [[ -f "$config" && ! -L "$config" ]] || fail "Configuration absente ou lien symbolique : $config."
 
+step 2 'Préparer le dépôt et vérifier la signature'
+info "Dépôt : $server"
 work="$(mktemp -d /etc/.master-archrepo.XXXXXXXX)"
 trap 'rm -rf -- "$work"' EXIT
 cp -a -- "$config" "$work/original"
@@ -76,18 +93,27 @@ reported="$(awk -F: '
 gpg --homedir "$work" --batch --no-autostart --output "$work/keyring.gpg" --dearmor "$work/key.asc"
 gpgv --homedir "$work" --keyring "$work/keyring.gpg" "$work/$repo.db.sig" "$work/$repo.db" \
     || fail 'Signature de la base pacman invalide.'
+ok 'Empreinte de la clé et signature de la base vérifiées.'
 
+step 3 'Configurer la confiance Pacman et le dépôt'
+printf '  %bAttention%b  La clé est ajoutée et signée localement dans le trousseau Pacman.\n' "$YELLOW" "$RESET"
 cmp -s -- "$config" "$work/original" || fail "$config a changé. Relancez le script."
 pacman-key --add "$work/key.asc"
 pacman-key --lsign-key "$fingerprint"
+backup=''
 if ! cmp -s -- "$candidate" "$work/original"; then
     backup="$(mktemp "${config}.before-master-archrepo.XXXXXXXX")"
     cp -a -- "$work/original" "$backup"
     cmp -s -- "$config" "$work/original" || fail "$config a changé. Relancez le script."
     mv -T -- "$candidate" "$config"
-    printf 'Sauvegarde de la configuration : %s\n' "$backup"
 fi
 
-printf '%s\n' 'Dépôt master-archrepo configuré.' \
-    'Pour installer les deux applications :' \
-    '  sudo pacman -Syu master-archrepo/sambapilot master-archrepo/dotfilepilot'
+step 4 'Afficher le bilan'
+ok 'Dépôt master-archrepo configuré.'
+if [[ -n "$backup" ]]; then
+    info "Sauvegarde de la configuration : $backup"
+else
+    info "$config contenait déjà une section conforme."
+fi
+info 'Pour installer les deux applications :'
+info 'sudo pacman -Syu master-archrepo/sambapilot master-archrepo/dotfilepilot'
