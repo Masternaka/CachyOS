@@ -11,26 +11,29 @@ changent. Les volumes sont ciblés dans cet ordre.
 | Medias | `cab0291d-9a2a-4110-a02f-6783238dcda3` |
 | SSD | `d594fd69-fb7d-485a-aab4-272da6bee7e0` |
 
-## Examiner le plan
+## Ouvrir le menu
 
 ```bash
 bash "10 - disk_setup.sh"
 ```
 
-La simulation indique les labels et l’état de montage sans écrire sur les
-disques. Elle annonce l’UID du compte `gabriel`. Le script s’arrête si un
-UUID manque, apparaît plusieurs fois ou identifie un autre type de partition.
+Le menu indique les labels, les volumes montés et l’UID du compte `gabriel`.
+Si un volume est encore monté, ferme les fichiers ouverts et démonte le volume
+depuis le gestionnaire de fichiers. Appuie sur Entrée pour actualiser ou sur
+`q` pour quitter. Si tu veux seulement voir l’inventaire, lance
+`bash "10 - disk_setup.sh" --dry-run`. Un lancement sans terminal affiche aussi
+seulement l’inventaire.
 
 ## Appliquer
 
-Ferme les applications qui utilisent les volumes et démonte les quatre
-volumes depuis le gestionnaire de fichiers. Vérifie que les données importantes
-sont sauvegardées. Lance ensuite la commande ci-dessous et saisis `APPLIQUER`
-après avoir vérifié les cibles.
-
-```bash
-sudo bash "10 - disk_setup.sh" --apply
-```
+Quand les quatre volumes sont démontés et tes données importantes
+sauvegardées, réponds `o` à la proposition de poursuivre avec `sudo`. Le script
+relit les identifiants sur les partitions et vérifie le format ext4, l’absence
+de montage et l’accès en écriture. Il s’arrête si un UUID manque ou si
+plusieurs partitions correspondent. Une fois les contrôles passés, tape
+`APPLIQUER` pour effectuer les changements. Toute autre réponse annule.
+Le script vérifie de nouveau les cibles avant le premier montage et refuse
+qu’une seconde exécution modifie les volumes en même temps.
 
 Pour chaque partition, le script monte brièvement le volume dans un dossier
 privé. Il consigne les propriétaires d’origine, attribue à `gabriel` la racine
