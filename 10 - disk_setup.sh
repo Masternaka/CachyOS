@@ -77,7 +77,8 @@ discover() {
         while read -r uuid device fs kind node; do
             [[ "$uuid" == "$wanted" ]] || continue
             (( found += 1 ))
-            [[ "$fs" == ext4 && "$kind" == part && -b "$device" && "$node" =~ ^[0-9]+:[0-9]+$ ]] ||
+            [[ "$fs" == ext4 && "$kind" == part && "$device" == /dev/* &&
+               -b "$device" && "$node" =~ ^[0-9]+:[0-9]+$ ]] ||
                 fatal "La cible $wanted doit être une partition ext4."
             DEVICES[i]="$device" NODES[i]="$node"
         done <<< "$inventory"
@@ -143,7 +144,8 @@ require_offline_device() {
     mounted=$(mounted_device_numbers) ||
         fatal 'Table des montages indisponible.'
     [[ $'\n'"$mounted"$'\n' != *$'\n'"$node"$'\n'* ]] || fatal "$device est monté."
-    read_only=$(blockdev --getro -- "$device") || fatal "Impossible de vérifier l’accès en écriture sur $device."
+    # Certaines versions de blockdev traitent le séparateur -- comme une commande.
+    read_only=$(blockdev --getro "$device") || fatal "Impossible de vérifier l’accès en écriture sur $device."
     [[ "$read_only" == 0 ]] || fatal "$device est en lecture seule."
 }
 
