@@ -4,12 +4,12 @@ Le script `10 - disk_setup.sh` est propre à cet ordinateur CachyOS. Il
 identifie les partitions ext4 par UUID, même si les noms `/dev/sdX`
 changent. Les volumes sont ciblés dans cet ordre.
 
-| Label ext4 | UUID |
-| --- | --- |
-| Backup Medias | `58cdcfb4-b7c7-45aa-9d27-97d3567e77ba` |
-| Disque Samsung | `7c61158b-ac8c-42e6-90ed-1f659acf4335` |
-| Medias | `cab0291d-9a2a-4110-a02f-6783238dcda3` |
-| SSD | `d594fd69-fb7d-485a-aab4-272da6bee7e0` |
+| Label ext4 | UUID | Point de montage |
+| --- | --- | --- |
+| Backup Medias | `58cdcfb4-b7c7-45aa-9d27-97d3567e77ba` | `/mnt/Backup Medias` |
+| Disque Samsung | `7c61158b-ac8c-42e6-90ed-1f659acf4335` | `/mnt/Disque Samsung` |
+| Medias | `cab0291d-9a2a-4110-a02f-6783238dcda3` | `/mnt/Medias` |
+| SSD | `d594fd69-fb7d-485a-aab4-272da6bee7e0` | `/mnt/SSD` |
 
 ## Ouvrir le menu
 
@@ -43,9 +43,11 @@ Les groupes sont conservés. Le changement de propriétaire peut retirer
 certains bits spéciaux ou certaines capacités de fichiers. Une fois le volume
 démonté, le script corrige le label s’il diffère, puis le relit.
 
-Tu peux remonter les volumes depuis le gestionnaire de fichiers après le bilan.
-Le script conserve les systèmes de fichiers existants et ne modifie pas
-`/etc/fstab`.
+Le script vérifie le fichier `/etc/fstab` préparé et l’installe après avoir
+traité les quatre volumes. Il refuse de remplacer une entrée en conflit ou
+d’utiliser un dossier de montage non vide. Une entrée identique est réutilisée.
+Au prochain démarrage, le système monte les volumes dans les dossiers ci-dessus.
+L’option `nofail` laisse le démarrage se poursuivre si l’un d’eux est absent.
 
 ## Relevé et retour arrière
 
@@ -53,6 +55,10 @@ Le script affiche un dossier privé `/var/tmp/cachyos-disques.*`. Le fichier
 `journal.tsv` indique les volumes traités. Après un échec, une entrée
 « Propriété en cours » peut correspondre à un changement partiel.
 
+- `fstab.avant` conserve le fichier d’origine si des entrées de montage ont
+  été ajoutées. Pour désactiver le montage automatique, compare la sauvegarde
+  à `/etc/fstab` et retire les entrées ajoutées en conservant les autres
+  modifications faites depuis.
 - `<uuid>.label` conserve le label d’origine. Après avoir confirmé l’UUID et
   démonté la partition, ce label peut être rétabli avec `sudo e2label PÉRIPHÉRIQUE "ANCIEN_LABEL"`.
 - `<uuid>.proprietaires` contient, pour chaque entrée concernée, cinq champs

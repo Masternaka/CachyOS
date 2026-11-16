@@ -11,6 +11,8 @@ UUIDS=(
     d594fd69-fb7d-485a-aab4-272da6bee7e0
 )
 LABELS=('Backup Medias' 'Disque Samsung' 'Medias' 'SSD')
+FSTAB=/etc/fstab
+BOOT_MOUNT_OPTIONS=defaults,nofail
 
 CYAN='' GREEN='' YELLOW='' RED='' RESET=''
 if [[ -t 1 && -t 2 && -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
@@ -27,6 +29,7 @@ Sans option : affiche les quatre volumes et propose de continuer dans un termina
 --dry-run   Affiche seulement l’inventaire et le plan, sans sudo.
 --apply     Ancienne commande conservée pour un lancement direct avec sudo.
 
+Le plan comprend le montage automatique des volumes au démarrage via /etc/fstab.
 Le script demande sudo avant les vérifications administrateur. Les volumes
 doivent être démontés et toute modification exige la saisie d’APPLIQUER.
 HELP
@@ -102,6 +105,8 @@ discover() {
 step '1 · Examiner les quatre partitions'
 discover
 printf '  Propriétaire prévu pour la racine et son contenu : %s (UID %s).\n' "$OWNER" "$OWNER_UID"
+printf '  Montage automatique au démarrage prévu sous /mnt :\n'
+for label in "${LABELS[@]}"; do printf '    /mnt/%s\n' "$label"; done
 if [[ "$MODE" == preview ]]; then exit 0; fi
 while ! $ALL_OFFLINE; do
     status "$YELLOW" 'Montage' 'Fermer les fichiers ouverts et démonter les volumes signalés depuis le gestionnaire de fichiers.'
@@ -123,7 +128,7 @@ if (( EUID != 0 )); then
     exec sudo -- /usr/bin/bash -- "$script_path" --apply
 fi
 
-for tool in blkid blockdev chown e2label find flock mkdir mktemp mount mountpoint rmdir umount; do
+for tool in blkid blockdev chown cmp cp e2label find findfs flock mkdir mktemp mount mountpoint mv realpath rm rmdir sha256sum umount; do
     command -v "$tool" >/dev/null || fatal "Outil manquant : $tool."
 done
 
@@ -156,9 +161,71 @@ verify_targets() {
     done
 }
 
+check_mount_directory() {
+    local target="$1" entries
+    [[ -d /mnt && ! -L /mnt && ! -L "$target" ]] || fatal "Point de montage redirigé ou parent absent : $target."
+    if [[ -e "$target" ]]; then
+        [[ -d "$target" ]] || fatal "Le point de montage n’est pas un dossier : $target."
+        if mountpoint -q -- "$target"; then fatal "Point de montage déjà utilisé : $target."; fi
+        entries=$(find "$target" -mindepth 1 -maxdepth 1 -printf x -quit) ||
+            fatal "Impossible de lire $target."
+        [[ -z "$entries" ]] || fatal "Point de montage non vide : $target."
+    fi
+}
+
+plan_boot_mounts() {
+    local source target fs options dump pass rest resolved canonical tag i path expected
+    local -a present=()
+    [[ -f "$FSTAB" && ! -L "$FSTAB" ]] || fatal "$FSTAB doit être un fichier ordinaire."
+    FSTAB_BEFORE=$(sha256sum -- "$FSTAB") || fatal "Impossible de lire $FSTAB."
+    FSTAB_LINES=()
+    while read -r source target fs options dump pass rest || [[ -n "$source" ]]; do
+        [[ -n "$source" && "$source" != \#* ]] || continue
+        source="${source//\\040/ }"
+        target="${target//\\040/ }"
+        target="${target//\\011/$'\t'}"
+        resolved=''
+        tag=''
+        case "$source" in
+            UUID=*|LABEL=*|PARTUUID=*|PARTLABEL=*)
+                tag="${source#*=}"
+                if [[ "$tag" == \"*\" || "$tag" == \'*\' ]]; then tag="${tag:1:${#tag}-2}"; fi
+                source="${source%%=*}=$tag"
+                resolved=$(findfs "$source" 2>/dev/null) || resolved=''
+                ;;
+            /dev/*) resolved="$source" ;;
+        esac
+        if [[ -n "$resolved" ]]; then resolved=$(realpath -m -- "$resolved") || fatal "Chemin de périphérique invalide : $resolved."; fi
+        canonical="$target"
+        if [[ "$target" == /* ]]; then canonical=$(realpath -m -- "$target") || fatal "Chemin fstab invalide : $target."; fi
+        for i in "${!UUIDS[@]}"; do
+            path="/mnt/${LABELS[i]}"
+            expected="UUID=${UUIDS[i]}"
+            if [[ "$source" == "$expected" && "$target" == "$path" && "$fs" == ext4 &&
+                  "$options" == "$BOOT_MOUNT_OPTIONS" && "$dump" == 0 && "$pass" == 2 &&
+                  -z "${present[i]:-}" ]]; then
+                present[i]=true
+            elif [[ "$source" == "$expected" || "$source" == "LABEL=${LABELS[i]}" ||
+                    "$resolved" == "${DEVICES[i]}" || "$canonical" == "$path" ]]; then
+                fatal "Entrée existante en conflit dans $FSTAB : $source → $target."
+            fi
+        done
+    done < "$FSTAB"
+    for i in "${!UUIDS[@]}"; do
+        path="/mnt/${LABELS[i]}"
+        check_mount_directory "$path"
+        if [[ "${present[i]:-}" != true ]]; then
+            FSTAB_LINES+=("UUID=${UUIDS[i]} ${path// /\\040} ext4 $BOOT_MOUNT_OPTIONS 0 2")
+        fi
+    done
+    [[ "$(sha256sum -- "$FSTAB")" == "$FSTAB_BEFORE" ]] || fatal "$FSTAB a changé pendant la lecture."
+}
+
 step '2 · Confirmer les changements'
 verify_targets
+plan_boot_mounts
 status "$GREEN" 'Prêt' 'Les quatre partitions ext4 sont identifiées par UUID, démontées et accessibles en écriture.'
+printf '  Entrées de montage à ajouter dans %s : %s. Un disque absent ne bloque pas le démarrage.\n' "$FSTAB" "${#FSTAB_LINES[@]}"
 status "$YELLOW" 'Attention' 'Le changement de propriétaire touche tous les fichiers, y compris les fichiers cachés. Il peut modifier les droits d’accès et effacer certains bits spéciaux ou capacités.'
 printf '  Les groupes sont conservés. Un relevé des propriétaires d’origine précède chaque changement.\n'
 printf '  Taper APPLIQUER pour continuer : '
@@ -170,11 +237,15 @@ exec 9>/run/cachyos-disk-setup.lock || fatal 'Impossible d’ouvrir le verrou.'
 flock -n 9 || fatal 'Une autre exécution est déjà en cours.'
 # Revalider toutes les cibles avant d’ouvrir la première en écriture.
 verify_targets
+[[ "$(sha256sum -- "$FSTAB")" == "$FSTAB_BEFORE" ]] || fatal "$FSTAB a changé depuis le plan."
 
 SNAPSHOT=$(mktemp -d /var/tmp/cachyos-disques.XXXXXXXX) || fatal 'Création du relevé impossible.'
 MOUNT_DIR="$SNAPSHOT/volume"
+FSTAB_STAGE=''
+FSTAB_INSTALLED=false
+CREATED_MOUNT_PATHS=()
 cleanup() {
-    local result=$?
+    local result=$? path
     if mountpoint -q -- "$MOUNT_DIR"; then
         if ! umount -- "$MOUNT_DIR"; then
             status "$RED" 'Échec' "Montage encore actif : $MOUNT_DIR." >&2
@@ -182,6 +253,10 @@ cleanup() {
         fi
     fi
     if [[ -d "$MOUNT_DIR" ]] && ! mountpoint -q -- "$MOUNT_DIR"; then rmdir -- "$MOUNT_DIR" || result=1; fi
+    if [[ -n "$FSTAB_STAGE" ]]; then rm -f -- "$FSTAB_STAGE" || result=1; fi
+    if (( result != 0 )) && ! $FSTAB_INSTALLED; then
+        for path in ${CREATED_MOUNT_PATHS[@]+"${CREATED_MOUNT_PATHS[@]}"}; do rmdir -- "$path" || result=1; done
+    fi
     printf '  Relevé et journal : %s\n' "$SNAPSHOT"
     exit "$result"
 }
@@ -190,6 +265,26 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 mkdir -- "$MOUNT_DIR"
 printf 'État\tUUID\tPériphérique\tLabel prévu\n' > "$SNAPSHOT/journal.tsv"
+
+for label in "${LABELS[@]}"; do
+    path="/mnt/$label"
+    check_mount_directory "$path"
+    if [[ ! -d "$path" ]]; then
+        mkdir -m 0755 -- "$path" || fatal "Impossible de créer $path."
+        CREATED_MOUNT_PATHS+=("$path")
+    fi
+done
+if (( ${#FSTAB_LINES[@]} > 0 )); then
+    cp --preserve=all -- "$FSTAB" "$SNAPSHOT/fstab.avant" || fatal "Sauvegarde de $FSTAB impossible."
+    [[ "$(sha256sum -- "$FSTAB")" == "$FSTAB_BEFORE" ]] &&
+        cmp -s -- "$FSTAB" "$SNAPSHOT/fstab.avant" || fatal "$FSTAB a changé depuis le plan."
+    FSTAB_STAGE=$(mktemp /etc/.cachyos-fstab.XXXXXXXX) || fatal 'Préparation du fichier fstab impossible.'
+    cp --preserve=all -- "$SNAPSHOT/fstab.avant" "$FSTAB_STAGE" || fatal 'Copie du fichier fstab impossible.'
+    printf '\n# CachyOS : volumes secondaires\n%s\n' "${FSTAB_LINES[@]}" >> "$FSTAB_STAGE" ||
+        fatal 'Écriture du fichier fstab préparé impossible.'
+    findmnt --verify --tab-file "$FSTAB_STAGE" > "$SNAPSHOT/fstab.verification" 2>&1 ||
+        fatal "Le fichier fstab préparé a échoué à la vérification. Voir $SNAPSHOT/fstab.verification."
+fi
 
 for i in "${!UUIDS[@]}"; do
     uuid="${UUIDS[i]}" device="${DEVICES[i]}" label="${LABELS[i]}" node="${NODES[i]}"
@@ -230,5 +325,16 @@ for i in "${!UUIDS[@]}"; do
     status "$GREEN" 'Vérifié' "Label « $label » et propriétaire $OWNER."
 done
 
-step '4 · Bilan'
-status "$GREEN" 'Terminé' "${#UUIDS[@]} volumes vérifiés. Ils peuvent être remontés depuis le gestionnaire de fichiers."
+step '4 · Activer le montage au démarrage et afficher le bilan'
+if [[ -n "$FSTAB_STAGE" ]]; then
+    [[ -f "$FSTAB" && ! -L "$FSTAB" && "$(sha256sum -- "$FSTAB")" == "$FSTAB_BEFORE" ]] ||
+        fatal "$FSTAB a changé. Le fichier existant est conservé."
+    for label in "${LABELS[@]}"; do check_mount_directory "/mnt/$label"; done
+    FSTAB_INSTALLED=true
+    if ! mv -T -- "$FSTAB_STAGE" "$FSTAB"; then
+        FSTAB_INSTALLED=false
+        fatal "Impossible de mettre à jour $FSTAB."
+    fi
+    FSTAB_STAGE=''
+fi
+status "$GREEN" 'Terminé' "${#UUIDS[@]} volumes vérifiés. Le montage automatique prendra effet au prochain démarrage."

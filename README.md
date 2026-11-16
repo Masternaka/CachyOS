@@ -20,7 +20,7 @@ d'exécution. Examiner leurs prérequis et leurs simulations avant de les appliq
 | [07 · QEMU et Virt-Manager](docs/qemu.md) | KVM, libvirt, UEFI, TPM, stockage et réseau virtuel | Compte normal, confirmations avant les actions `sudo` |
 | [08 · master-archrepo](docs/master-archrepo.md) | Dépôt Pacman tiers pour SambaPilot et DotfilePilot | Avec `sudo` et une empreinte vérifiée, sans simulation ni confirmation intégrée |
 | [09 · Purge d’applications](docs/purge-applications.md) | Inventaire Pacman et Flatpak, sélection interactive et configurations ciblées | Simulation par défaut, `sudo` pour retirer les paquets natifs |
-| [10 · Disques secondaires](docs/disk-setup.md) | Labels ext4 et propriété des quatre volumes de données | Menu interactif, `sudo` et confirmation avant modification |
+| [10 · Disques secondaires](docs/disk-setup.md) | Labels ext4, propriété et montage automatique des quatre volumes de données | Menu interactif, `sudo` et confirmation avant modification |
 
 Les [guides détaillés](docs/README.md) et le [catalogue Dotfiles](Dotfiles/README.md)
 décrivent les fichiers, les sauvegardes et les limites de validation.
