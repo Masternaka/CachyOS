@@ -1,5 +1,7 @@
 # Configurer les quatre disques secondaires
 
+[Accueil](../README.md) · [Utiliser les scripts](utilisation.md) · [Tous les guides](../README.md#choisir-un-script)
+
 Le script `10 - disk_setup.sh` est propre à cet ordinateur CachyOS. Il
 identifie les partitions ext4 par UUID, même si les noms `/dev/sdX`
 changent. Les volumes sont ciblés dans cet ordre.

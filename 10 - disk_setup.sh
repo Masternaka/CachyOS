@@ -3,6 +3,10 @@
 set -euo pipefail
 export LC_ALL=C PATH=/usr/bin:/bin
 
+# Bilan commun ; conserver le dossier scripts/ à côté de ce fichier.
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/scripts/bilan.sh"
+bilan_init "10 · Disques secondaires" "$@"
+
 OWNER=gabriel
 UUIDS=(
     58cdcfb4-b7c7-45aa-9d27-97d3567e77ba
@@ -18,9 +22,9 @@ CYAN='' GREEN='' YELLOW='' RED='' RESET=''
 if [[ -t 1 && -t 2 && -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
     CYAN='\033[1;36m' GREEN='\033[1;32m' YELLOW='\033[1;33m' RED='\033[1;31m' RESET='\033[0m'
 fi
-step() { printf '\n%b── %s%b\n' "$CYAN" "$1" "$RESET"; }
+step() { BILAN_ETAPE="$*"; printf '\n%b── %s%b\n' "$CYAN" "$1" "$RESET"; }
 status() { printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3"; }
-fatal() { status "$RED" 'Échec' "$1" >&2; exit 1; }
+fatal() { bilan_erreur "$*"; status "$RED" 'Échec' "$1" >&2; exit 1; }
 usage() {
     cat <<'HELP'
 Usage : bash "10 - disk_setup.sh" [--dry-run]
@@ -112,6 +116,7 @@ while ! $ALL_OFFLINE; do
     status "$YELLOW" 'Montage' 'Fermer les fichiers ouverts et démonter les volumes signalés depuis le gestionnaire de fichiers.'
     printf '  Entrée pour actualiser, q pour quitter : '
     if ! IFS= read -r answer || [[ "$answer" == [qQ] ]]; then
+        bilan_annule 'Annulé depuis le menu des volumes.'
         printf '  Opération annulée.\n'
         exit 0
     fi
@@ -120,6 +125,7 @@ done
 if (( EUID != 0 )); then
     printf '  Continuer vers les vérifications avec sudo ? [o/N] '
     if ! IFS= read -r answer || [[ "$answer" != [oO] && "$answer" != oui ]]; then
+        bilan_annule 'Élévation avec sudo refusée.'
         printf '  Opération annulée.\n'
         exit 0
     fi
@@ -230,7 +236,7 @@ status "$YELLOW" 'Attention' 'Le changement de propriétaire touche tous les fic
 printf '  Les groupes sont conservés. Un relevé des propriétaires d’origine précède chaque changement.\n'
 printf '  Taper APPLIQUER pour continuer : '
 IFS= read -r answer || fatal 'Confirmation interrompue.'
-if [[ "$answer" != APPLIQUER ]]; then printf '  Opération annulée.\n'; exit 0; fi
+if [[ "$answer" != APPLIQUER ]]; then bilan_annule 'Application des changements refusée.'; printf '  Opération annulée.\n'; exit 0; fi
 
 umask 077
 exec 9>/run/cachyos-disk-setup.lock || fatal 'Impossible d’ouvrir le verrou.'
@@ -258,6 +264,7 @@ cleanup() {
         for path in ${CREATED_MOUNT_PATHS[@]+"${CREATED_MOUNT_PATHS[@]}"}; do rmdir -- "$path" || result=1; done
     fi
     printf '  Relevé et journal : %s\n' "$SNAPSHOT"
+    bilan_print "$result"
     exit "$result"
 }
 trap cleanup EXIT
@@ -290,8 +297,10 @@ for i in "${!UUIDS[@]}"; do
     uuid="${UUIDS[i]}" device="${DEVICES[i]}" label="${LABELS[i]}" node="${NODES[i]}"
     step "3 · Traiter $label ($device)"
     require_offline_device "$device" "$uuid" "$node"
+    BILAN_VOLUME_MODIFIE=false
     old_label=$(e2label "$device") || fatal "Lecture du label de $device impossible."
     printf '%s\n' "$old_label" > "$SNAPSHOT/$uuid.label"
+    bilan_debut
     mount -t ext4 -o nosuid,nodev,noexec -- "$device" "$MOUNT_DIR" ||
         fatal "Montage temporaire impossible : $device."
     mount_identity=$(findmnt --kernel --noheadings --raw --mountpoint "$MOUNT_DIR" -o MAJ:MIN,FSTYPE,FSROOT) ||
@@ -304,6 +313,7 @@ for i in "${!UUIDS[@]}"; do
     find -P "$MOUNT_DIR" -xdev ! -uid "$OWNER_UID" -printf '%U\0%G\0%m\0%i\0%P\0' > "$SNAPSHOT/$uuid.proprietaires" ||
         fatal "Relevé des propriétaires incomplet pour $label."
     if [[ -s "$SNAPSHOT/$uuid.proprietaires" ]]; then
+        BILAN_VOLUME_MODIFIE=true
         printf 'Propriété en cours\t%s\t%s\t%s\n' "$uuid" "$device" "$label" >> "$SNAPSHOT/journal.tsv"
         status "$CYAN" 'Propriété' "Attribution des entrées concernées à $OWNER."
         find -P "$MOUNT_DIR" -xdev ! -uid "$OWNER_UID" -execdir chown -h -- "+$OWNER_UID" '{}' + ||
@@ -314,14 +324,24 @@ for i in "${!UUIDS[@]}"; do
     remaining=$(find -P "$MOUNT_DIR" -xdev ! -uid "$OWNER_UID" -print -quit) ||
         fatal "Vérification de la propriété impossible pour $label."
     [[ -z "$remaining" ]] || fatal "Une entrée appartient encore à un autre compte : $remaining."
+    if [[ -s "$SNAPSHOT/$uuid.proprietaires" ]]; then
+        bilan_action "$label : propriétaires attribués à $OWNER et vérifiés."
+    fi
     umount -- "$MOUNT_DIR" || fatal "Démontage temporaire impossible : $device."
 
     require_offline_device "$device" "$uuid" "$node"
     if [[ "$old_label" != "$label" ]]; then
+        BILAN_VOLUME_MODIFIE=true
         e2label "$device" "$label" || fatal "Impossible d’appliquer le label « $label »."
     fi
     [[ "$(e2label "$device")" == "$label" ]] || fatal "Le label final de $device est inattendu."
+    if [[ "$old_label" != "$label" ]]; then
+        bilan_action "$label : label remplacé et vérifié (ancien : ${old_label:-sans label})."
+    fi
     printf 'Vérifié\t%s\t%s\t%s\n' "$uuid" "$device" "$label" >> "$SNAPSHOT/journal.tsv"
+    if ! $BILAN_VOLUME_MODIFIE; then
+        bilan_ignore "$label : label et propriétaires déjà conformes."
+    fi
     status "$GREEN" 'Vérifié' "Label « $label » et propriétaire $OWNER."
 done
 
@@ -336,5 +356,7 @@ if [[ -n "$FSTAB_STAGE" ]]; then
         fatal "Impossible de mettre à jour $FSTAB."
     fi
     FSTAB_STAGE=''
+    bilan_action 'Montage automatique enregistré dans /etc/fstab.'
 fi
+bilan_note 'Vérifier le montage des volumes au prochain démarrage.'
 status "$GREEN" 'Terminé' "${#UUIDS[@]} volumes vérifiés. Le montage automatique prendra effet au prochain démarrage."

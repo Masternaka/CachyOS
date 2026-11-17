@@ -1,5 +1,7 @@
 # Configurer le pare-feu
 
+[Accueil](../README.md) · [Utiliser les scripts](utilisation.md) · [Tous les guides](../README.md#choisir-un-script)
+
 ## Menu interactif
 
 ```bash

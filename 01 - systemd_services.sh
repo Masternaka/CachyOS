@@ -2,6 +2,10 @@
 
 set -euo pipefail
 
+# Bilan commun ; conserver le dossier scripts/ à côté de ce fichier.
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/scripts/bilan.sh"
+bilan_init "01 · Services systemd" "$@"
+
 # ─── Affichage ───────────────────────────────────────────────────────────────
 GREEN='' YELLOW='' CYAN='' BLUE='' STATE_RED='' VIOLET='' BOLD='' RESET=''
 RED='' ERROR_RESET=''
@@ -17,10 +21,10 @@ fi
 
 info()   { printf '  %b[OK]%b %s\n' "$GREEN" "$RESET" "$*"; }
 warn()   { printf '  %b[Attention]%b %s\n' "$YELLOW" "$RESET" "$*"; }
-error()  { printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$*" >&2; }
+error()  { bilan_erreur "$*"; printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$*" >&2; }
 detail() { printf '  %b%-12s%b %s\n' "$BOLD" "$1" "$RESET" "$2"; }
 dry()    { printf '  %b[Simulation]%b %s\n' "$CYAN" "$RESET" "$*"; }
-step()   { printf '\n%b── %s/3  %s%b\n' "$CYAN" "$1" "$2" "$RESET"; }
+step()   { BILAN_ETAPE="$*"; printf '\n%b── %s/3  %s%b\n' "$CYAN" "$1" "$2" "$RESET"; }
 backup() { printf '  %b[Sauvegarde]%b %s\n' "$VIOLET" "$RESET" "$*"; }
 
 show_state() {
@@ -87,6 +91,7 @@ TIMERS=(fstrim.timer paccache.timer)
 UNITS=("${SERVICES[@]}" "${TIMERS[@]}")
 FAILURES=0
 UNDO_FILE=''
+BILAN_CHANGED_UNITS=()
 
 # ─── Dépendances requises ────────────────────────────────────────────────────
 # Vérifier le paquet et l'unité ; bluetoothctl (bluez-utils) n'est pas requis
@@ -179,6 +184,7 @@ enable_unit() {
   initial_enabled="$ENABLED_STATE"; initial_active="$ACTIVE_STATE"
   show_state 'Avant' "$initial_enabled" "$initial_active"
   if [[ "$initial_enabled" == enabled && "$initial_active" == active ]]; then
+    bilan_ignore "$unit : déjà actif et activé."
     info "$unit — déjà activé durablement et actif, aucune action."
     return 0
   fi
@@ -194,6 +200,8 @@ enable_unit() {
     error "$unit — impossible d'enregistrer le retour arrière ; aucune action sur cette unité."
     return 1
   fi
+  bilan_debut
+  BILAN_CHANGED_UNITS+=("$unit")
   if [[ "$initial_enabled" == enabled ]]; then
     detail 'Action' "Démarrer $unit."
     if ! systemctl start "$unit"; then
@@ -246,6 +254,10 @@ else
     if [[ "$ENABLED_STATE" != enabled || "$ACTIVE_STATE" != active ]]; then
       error "$unit — objectif non atteint : activation=$ENABLED_STATE, état=$ACTIVE_STATE."
       FAILURES=$((FAILURES + 1))
+    else
+      case " ${BILAN_CHANGED_UNITS[*]:-} " in
+        *" $unit "*) bilan_action "$unit : actif et activé, état final vérifié." ;;
+      esac
     fi
   done
 fi
@@ -261,5 +273,6 @@ fi
 if $DRY_RUN; then
   dry 'Dry-run terminé — aucune modification effectuée.'
 else
+  bilan_note 'Accès SSH à vérifier depuis un autre poste si ce service est utilisé.'
   info 'Terminé — toutes les unités sont activées durablement et actives.'
 fi

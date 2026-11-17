@@ -1,5 +1,7 @@
 # Régler les téléchargements parallèles de Pacman
 
+[Accueil](../README.md) · [Utiliser les scripts](utilisation.md) · [Tous les guides](../README.md#choisir-un-script)
+
 `03 - pacman_settings.sh` règle `ParallelDownloads` dans la section `[options]`
 de `/etc/pacman.conf`. Il conserve les commentaires et les exemples. Les lignes
 actives en double sont commentées. Les valeurs sont décimales, de 0 à 20 :

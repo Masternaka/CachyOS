@@ -2,6 +2,10 @@
 
 set -Eeuo pipefail
 
+# Bilan commun ; conserver le dossier scripts/ à côté de ce fichier.
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/scripts/bilan.sh"
+bilan_init "04 · Zsh et terminal" "$@"
+
 # =============================================================================
 # Sélection et aide : aucune modification avant les confirmations dédiées
 # =============================================================================
@@ -40,28 +44,14 @@ info() { status_line "$BOLD" 'Info' "$*"; }
 ok() { status_line "$GREEN" 'OK' "$*"; }
 warn() { status_line "$YELLOW" 'Attention' "$*"; }
 dry() { status_line "$CYAN" 'Simulation' "$*"; }
-error() { status_line "$RED" 'Échec' "$*"; }
+error() { bilan_erreur "$*"; status_line "$RED" 'Échec' "$*"; }
 fatal() { error "$1"; exit "${2:-1}"; }
-step() {
+step() { BILAN_ETAPE="$*";
     PHASE="$2"
     printf '\n%b── %s/6  %s%b\n' "$CYAN" "$1" "$2" "$RESET" >&2
 }
 print_report() {
-    local status="$1" entry
-    (( BASH_SUBSHELL == 0 )) || return 0
-    printf '\n%b── Rapport final%b\n' "$CYAN" "$RESET" >&2
-    for entry in ${REPORT[@]+"${REPORT[@]}"}; do info "$entry"; done
-    if [[ -n "$SESSION" ]]; then
-        status_line "$VIOLET" 'Sauvegarde' "$SESSION"
-        status_line "$VIOLET" 'Retour arrière' "bash \"$SESSION/restaurer.sh\""
-    fi
-    if (( status != 0 )); then
-        error "Arrêt à l’étape « $PHASE » (code $status). Consultez les détails ci-dessus."
-    elif $DRY_RUN; then
-        dry 'Simulation terminée. Aucune modification appliquée.'
-    else
-        ok 'Opération terminée.'
-    fi
+    bilan_print "$1"
 }
 confirm() {
     local reply=''
@@ -73,6 +63,7 @@ read_choice() {
     printf '%b%s%b ' "$BOLD" "$1" "$RESET" >&2
     IFS= read -r CHOICE || fatal 'Saisie interrompue avant application.'
     if [[ "$CHOICE" == q || "$CHOICE" == Q ]]; then
+        bilan_annule 'Annulé depuis le menu, avant application.'
         REPORT+=('Annulé depuis le menu. Aucune modification appliquée.')
         exit 0
     fi
@@ -371,14 +362,18 @@ if (( ${#MISSING[@]} > 0 )); then
     command -v sudo >/dev/null 2>&1 || fatal 'sudo est requis pour installer les paquets manquants.'
     if ! confirm 'Autorisez-vous ces paquets et la mise à jour complète du système ?'; then
         REPORT+=('Installation des paquets refusée ou confirmation absente.')
+        bilan_annule 'Installation des paquets refusée.'
         fatal 'Installation refusée ; configurations conservées.'
     fi
     REPORT+=("Transaction Pacman demandée : ${MISSING[*]}")
+    bilan_debut
     sudo pacman -Syu --needed "${MISSING[@]}" || fatal 'Transaction Pacman interrompue ou échouée. Vérifiez son résultat avant de relancer.' "$?"
     for pkg in "${PKGS[@]}"; do pacman -Q "$pkg" >/dev/null || fatal "Paquet toujours absent : $pkg"; done
     for pkg in "${MISSING[@]}"; do status_line "$GREEN" 'Installé' "$pkg"; done
+    bilan_action 'Transaction Pacman terminée ; paquets requis présents.'
     REPORT+=('Transaction Pacman terminée, présence des paquets vérifiée.')
 else
+    bilan_ignore 'Paquets requis déjà présents.'
     status_line "$BLUE" 'Déjà présents' "${PKGS[*]}"
     REPORT+=('Paquets requis déjà présents.')
 fi
@@ -439,8 +434,10 @@ else
     command -v git >/dev/null 2>&1 || fatal 'Git est requis pour la copie locale de fzf-tab.'
     if [[ ! -d "$FZF_TAB_DIR" ]]; then
         confirm "Autorisez-vous le téléchargement de fzf-tab $FZF_TAB_VERSION depuis GitHub vers $FZF_TAB_DIR ?" \
-            || fatal 'Téléchargement refusé ; aucune configuration remplacée.'
+            || { bilan_annule 'Téléchargement de fzf-tab refusé.'; fatal 'Téléchargement refusé ; aucune configuration remplacée.'; }
+        bilan_debut
         download_fzf_tab
+        bilan_action "Copie de fzf-tab téléchargée et vérifiée : $FZF_TAB_DIR"
         REPORT+=("Copie locale de fzf-tab $FZF_TAB_VERSION vérifiée : $FZF_TAB_DIR")
     else
         verify_fzf_tab "$FZF_TAB_DIR"
@@ -456,15 +453,18 @@ fi
 step 4 'Sauvegarder et déployer les configurations'
 DEPLOY_ARGS+=(--fzf-source "$FZF_TAB_SOURCE")
 PLAN_TOKEN=$(python3 -B "$DEPLOY_ENGINE" preview "${DEPLOY_ARGS[@]}") || fatal 'Préparation finale refusée.'
-confirm 'Autorisez-vous la sauvegarde puis le déploiement des fichiers annoncés ?' || fatal 'Déploiement refusé ; configurations conservées.'
+confirm 'Autorisez-vous la sauvegarde puis le déploiement des fichiers annoncés ?' || { bilan_annule 'Déploiement des configurations refusé.'; fatal 'Déploiement refusé ; configurations conservées.'; }
+bilan_debut
 SESSION=$(python3 -B "$DEPLOY_ENGINE" deploy "${DEPLOY_ARGS[@]}" --expected "$PLAN_TOKEN" --state-root "$BACKUP_ROOT") \
     || fatal 'Déploiement échoué ; consulter les messages et le dossier de sauvegarde affiché.'
+bilan_action "Configurations déployées et vérifiées en mode $MODE."
 REPORT+=("Configurations déployées et vérifiées en mode $MODE.")
 ok 'Déploiement vérifié.'
 
 # =============================================================================
 # Vérification des intégrations, de la police, puis actions facultatives
 # =============================================================================
+bilan_note 'Rouvrir les terminaux concernés pour vérifier leur rendu et leurs raccourcis.'
 step 5 'Vérifier les intégrations et proposer le cache Tealdeer'
 if contains delta "${SELECTED[@]}"; then
     GIT_PAGER_EFFECTIVE=$(git config --global --get core.pager) || fatal "Pager Git non confirmé ; voir $SESSION/restaurer.sh"
@@ -481,10 +481,13 @@ fi
 if contains tealdeer "${SELECTED[@]}"; then
     info 'Tealdeer : tldr --update télécharge le cache des exemples et peut mettre à jour un cache existant.'
     if confirm 'Autorisez-vous le téléchargement du cache Tealdeer maintenant ?'; then
+        bilan_debut
         tldr --update || fatal "Échec du cache Tealdeer ; configurations conservées. Retour arrière : $SESSION/restaurer.sh"
+        bilan_action 'Cache Tealdeer mis à jour.'
         REPORT+=('Cache Tealdeer mis à jour.')
     else
         info 'Cache Tealdeer conservé ; les exemples peuvent être indisponibles tant que le cache est absent.'
+        bilan_ignore 'Mise à jour du cache Tealdeer passée.'
         REPORT+=('Mise à jour du cache Tealdeer passée.')
     fi
 fi
@@ -493,6 +496,7 @@ if contains zsh "${SELECTED[@]}"; then
     ZSH_PATH=$(type -P zsh) || fatal 'Exécutable Zsh introuvable.'
     if [[ "$OLD_SHELL" == "$ZSH_PATH" || ( "${OLD_SHELL##*/}" == zsh && "$OLD_SHELL" -ef "$ZSH_PATH" ) ]]; then
         ok "Zsh est déjà le shell de connexion : $OLD_SHELL"
+        bilan_ignore "Shell de connexion conservé : $OLD_SHELL"
         REPORT+=("Shell de connexion conservé : $OLD_SHELL")
     else
         info "Shell actuel : $OLD_SHELL · Remplacement proposé : $ZSH_PATH"
@@ -505,11 +509,14 @@ if contains zsh "${SELECTED[@]}"; then
             [[ "${CURRENT_ENTRY##*:}" == "$OLD_SHELL" ]] || fatal 'Shell modifié depuis le début ; changement annulé.'
             python3 -B "$DEPLOY_ENGINE" mark-shell "$SESSION" --user "$USER_NAME" --old "$OLD_SHELL" --new "$ZSH_PATH"
             REPORT+=("Changement de shell demandé : $OLD_SHELL → $ZSH_PATH")
+            bilan_debut
             chsh -s "$ZSH_PATH" || fatal "Échec de chsh ; configuration conservée. Voir $SESSION/restaurer.sh"
             NEW_ENTRY=$(getent passwd "$USER_NAME") || fatal 'Impossible de vérifier le shell après chsh.'
             [[ "${NEW_ENTRY##*:}" == "$ZSH_PATH" ]] || fatal "Changement de shell non confirmé. Voir $SESSION/restaurer.sh"
+            bilan_action "Shell de connexion changé et vérifié : $OLD_SHELL → $ZSH_PATH"
             REPORT+=("Shell de connexion changé et vérifié : $OLD_SHELL → $ZSH_PATH")
         else
+            bilan_ignore "Shell de connexion conservé : $OLD_SHELL"
             REPORT+=("Shell de connexion conservé : $OLD_SHELL")
         fi
     fi

@@ -63,6 +63,8 @@ class FirewallTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
+        (self.root / "scripts").mkdir()
+        (self.root / "scripts/bilan.sh").write_text((SCRIPT.parent / "scripts/bilan.sh").read_text())
         self.bin = self.root / 'bin'; self.bin.mkdir()
         fake = self.root / 'fake'; fake.write_text('#!' + sys.executable + '\n' + FAKE); fake.chmod(0o755)
         for name in ['firewall-cmd', 'systemctl', 'mktemp']:
@@ -165,6 +167,9 @@ class FirewallTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertEqual(self.state(), self.initial)
             self.assertFalse(any('--remove-service=ssh' in c for c in self.calls()))
+            self.assertEqual(result.stderr.count('── Bilan de l’opération'), 1)
+            self.assertIn('Résultat     : Échoué', result.stderr)
+            self.assertIn('Retour arrière ciblé exécuté', result.stderr)
 
     def test_help_needs_no_system_tools(self):
         self.assertEqual(self.run_script('--help', original=True).returncode, 0)

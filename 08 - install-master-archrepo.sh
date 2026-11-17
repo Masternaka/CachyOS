@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+# Bilan commun ; conserver le dossier scripts/ à côté de ce fichier.
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/scripts/bilan.sh"
+bilan_init "08 · Dépôt master-archrepo" "$@"
 umask 077
 
 repo=master-archrepo
@@ -15,10 +19,10 @@ if [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
     fi
     if [[ -t 2 ]]; then RED='\033[1;31m' ERROR_RESET='\033[0m'; fi
 fi
-step() { printf '\n%b── %s/4  %s%b\n' "$CYAN" "$1" "$2" "$RESET"; }
+step() { BILAN_ETAPE="$*"; printf '\n%b── %s/4  %s%b\n' "$CYAN" "$1" "$2" "$RESET"; }
 info() { printf '  %s\n' "$*"; }
 status_line() { printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3"; }
-fail() {
+fail() { bilan_erreur "$*";
     printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$1" >&2
     exit "${2:-1}"
 }
@@ -55,7 +59,14 @@ done
 step 2 'Préparer le dépôt et vérifier la signature'
 info "Dépôt : $server"
 work="$(mktemp -d /etc/.master-archrepo.XXXXXXXX)"
-trap 'rm -rf -- "$work"' EXIT
+cleanup() {
+    local result=$?
+    trap - EXIT
+    rm -rf -- "$work" || result=1
+    bilan_print "$result"
+    exit "$result"
+}
+trap cleanup EXIT
 cp -a -- "$config" "$work/original"
 printf '[%s]\nSigLevel = Required TrustedOnly\nServer = %s\n' "$repo" "$server" >"$work/repo.conf"
 
@@ -100,8 +111,10 @@ status_line "$GREEN" 'Vérifié' 'Empreinte de la clé et signature de la base.'
 step 3 'Configurer la confiance Pacman et le dépôt'
 status_line "$YELLOW" 'Attention' 'La clé va être ajoutée et signée localement dans le trousseau Pacman.'
 cmp -s -- "$config" "$work/original" || fail "$config a changé. Relancez le script."
+bilan_debut
 pacman-key --add "$work/key.asc" || fail 'Import de la clé dans le trousseau Pacman impossible.' "$?"
 pacman-key --lsign-key "$fingerprint" || fail 'Signature locale de la clé impossible.' "$?"
+bilan_action "Import et signature locale de la clé terminés : $fingerprint."
 status_line "$GREEN" 'Clé signée' "$fingerprint"
 backup=''
 if ! cmp -s -- "$candidate" "$work/original"; then
@@ -109,6 +122,7 @@ if ! cmp -s -- "$candidate" "$work/original"; then
     cp -a -- "$work/original" "$backup"
     cmp -s -- "$config" "$work/original" || fail "$config a changé. Relancez le script."
     mv -T -- "$candidate" "$config"
+    bilan_action "Section [$repo] ajoutée à $config."
 fi
 
 step 4 'Afficher le bilan'
@@ -116,7 +130,9 @@ if [[ -n "$backup" ]]; then
     status_line "$GREEN" 'Dépôt ajouté' "$repo"
     status_line "$VIOLET" 'Sauvegarde' "$backup"
 else
+    bilan_ignore "Section [$repo] déjà conforme dans $config."
     status_line "$BLUE" 'Déjà conforme' "$config contient déjà la section [$repo]."
 fi
+bilan_note 'Les applications SambaPilot et DotfilePilot ne sont pas installées par ce script.'
 info 'Pour installer les deux applications :'
 info 'sudo pacman -Syu master-archrepo/sambapilot master-archrepo/dotfilepilot'

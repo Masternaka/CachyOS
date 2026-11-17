@@ -2,6 +2,10 @@
 # Installation de paquets depuis les dépôts officiels utilisés par CachyOS.
 # Aucun appel à l'AUR, aucun ajout de dépôt ni déploiement des Dotfiles.
 set -euo pipefail
+
+# Bilan commun ; conserver le dossier scripts/ à côté de ce fichier.
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/scripts/bilan.sh"
+bilan_init "05 · Paquets natifs" "$@"
 export LC_ALL=C
 
 DRY_RUN=false
@@ -69,7 +73,7 @@ GROUP_INTERNET=(
       #helium-browser-bin
       #zen-browser-bin
       floorp-bin
-      waterfox-bin
+      #waterfox-bin
 
 )
 
@@ -149,8 +153,8 @@ GROUP_IA=(
       openai-codex
       claude-desktop
       claude-code
-      opencode
-      opencode-desktop
+      #opencode
+      #opencode-desktop
 
 )
 
@@ -202,9 +206,9 @@ info() { printf '  %s\n' "$*"; }
 status_line() { printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3"; }
 ok() { status_line "$GREEN" 'OK' "$*"; }
 warn() { status_line "$YELLOW" 'Attention' "$*"; }
-error() { printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$*" >&2; }
+error() { bilan_erreur "$*"; printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$*" >&2; }
 fatal() { error "$1"; exit "${2:-1}"; }
-step() { printf '\n%b── %s/%s  %s%b\n' "$CYAN" "$1" "$STEPS" "$2" "$RESET"; }
+step() { BILAN_ETAPE="$*"; printf '\n%b── %s/%s  %s%b\n' "$CYAN" "$1" "$STEPS" "$2" "$RESET"; }
 
 show_help() {
   cat <<'EOF'
@@ -275,6 +279,7 @@ on_exit() {
       printf 'Pacman a pu effectuer des changements. Examiner son journal ; aucun retour arrière automatique.\n' >&2
     fi
   fi
+    bilan_print "$status"
 }
 trap 'on_exit $?' EXIT
 trap 'exit 130' INT
@@ -373,7 +378,7 @@ printf 'Autoriser la création de l’inventaire et la transaction décrite ? [o
 IFS= read -r answer || fatal 'Confirmation non reçue.'
 case "$answer" in
   o|O|oui|Oui|y|Y|yes) ;;
-  *) info 'Installation annulée ; aucun fichier écrit.'; exit 0 ;;
+  *) bilan_annule 'Installation refusée avant la transaction.'; info 'Installation annulée ; aucun fichier écrit.'; exit 0 ;;
 esac
 
 # Revalider après l'attente de confirmation, avant toute écriture.
@@ -416,6 +421,7 @@ des archives compatibles ou un instantané système existant.
 Les fichiers personnels, configurations et services ne sont pas sauvegardés ici.
 EOF
 status_line "$VIOLET" 'Inventaire' "$SNAPSHOT"
+bilan_debut
 TRANSACTION_STARTED=true
 # Une transaction groupée, cibles attachées au dépôt, confirmations natives.
 # Aucune synchronisation -Sy séparée susceptible de laisser une mise à jour partielle.
@@ -443,10 +449,13 @@ for package in "${PACKAGES[@]}"; do
   if [[ -z "$after_version" ]]; then
     warn "$package présent, version absente de l’inventaire final."
   elif [[ -z "$before_version" ]]; then
+    bilan_action "$package : installé ($after_version)."
     status_line "$GREEN" 'Installé' "$package · $after_version"
   elif [[ "$before_version" != "$after_version" ]]; then
+    bilan_action "$package : $before_version → $after_version."
     status_line "$GREEN" 'Version changée' "$package · $before_version → $after_version"
   else
+    bilan_ignore "$package : déjà à jour ($after_version)."
     status_line "$BLUE" 'Inchangé' "$package · $after_version"
   fi
 done

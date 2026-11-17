@@ -1,6 +1,8 @@
 # Installation des logiciels
 
-Le script `05 - package_install.sh` propose 62 paquets par défaut et installe la
+[Accueil](../README.md) · [Utiliser les scripts](utilisation.md) · [Tous les guides](../README.md#choisir-un-script)
+
+Le script `05 - package_install.sh` propose 59 paquets par défaut et installe la
 sélection dans une seule transaction `pacman -Syu --needed dépôt/paquet…`, après
 confirmation.
 Il remplace l'ancien client `tldr` par `tealdeer`, déjà configuré par le script Zsh.
@@ -66,11 +68,11 @@ dont [master-archrepo](master-archrepo.md), arrête le contrôle de provenance.
 
 | Groupe | Paquets |
 | --- | --- |
-| `utilitaires` | `catfish`, `flameshot`, `gnome-disk-utility`, `gparted`, `qbittorrent`, `transmission-qt`, `lshw`, `fwupd`, `timeshift`, `7zip`, `stow` |
+| `utilitaires` | `catfish`, `flameshot`, `gnome-disk-utility`, `gparted`, `qbittorrent`, `transmission-qt`, `timeshift`, `7zip`, `stow` |
 | `polices` | `ttf-jetbrains-mono-nerd`, `ttf-meslo-nerd`, `ttf-firacode-nerd` |
 | `langues` | `firefox-i18n-fr`, `thunderbird-i18n-fr` |
 | `securite` | `bitwarden`, `proton-pass`, `firewalld`, `firewall-config` |
-| `internet` | `firefox`, `thunderbird`, `brave-origin-bin` |
+| `internet` | `firefox`, `thunderbird`, `brave-origin-bin`, `floorp-bin` |
 | `multimedia` | `strawberry`, `mpv` |
 | `communication` | `vesktop-bin` |
 | `bureautique` | `libreoffice-fresh`, `libreoffice-fresh-fr`, `obsidian` |
@@ -78,7 +80,7 @@ dont [master-archrepo](master-archrepo.md), arrête le contrôle de provenance.
 | `terminaux` | `kitty`, `foot`, `ghostty` |
 | `terminal` | `btop`, `fastfetch`, `tealdeer`, `git`, `curl`, `wget`, `yazi`, `starship` |
 | `developpement` | `micro`, `code`, `github-desktop`, `meld`, `zed` |
-| `ia` | `openai-codex`, `claude-desktop`, `claude-code`, `opencode`, `opencode-desktop` |
+| `ia` | `openai-codex`, `claude-desktop`, `claude-code` |
 | `kde` | `merkuro`, `dolphin-plugins`, `isoimagewriter`, `yakuake`, `krusader`, `systemdgenie`, `print-manager` |
 
 ## Provenance et contrôle sur la cible
@@ -86,7 +88,7 @@ dont [master-archrepo](master-archrepo.md), arrête le contrôle de provenance.
 Le script vérifie les bases locales et les dépôts configurés avant toute
 installation. Aucun recours automatique à l'AUR ni téléchargement externe.
 Consulter le [catalogue CachyOS](https://packages.cachyos.org/) pour la disponibilité
-courante. Les 62 noms actifs sont conservés tels que choisis dans le dépôt ; cette
+courante. Les 59 noms actifs sont conservés tels que choisis dans le dépôt ; cette
 mise à jour ne prétend pas avoir revérifié individuellement leur disponibilité.
 Une entrée absente reste bloquante, sans substitution silencieuse.
 

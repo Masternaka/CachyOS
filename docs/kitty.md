@@ -1,22 +1,23 @@
 # Configuration Kitty Terminal
 
+[Accueil](../README.md) · [Utiliser les scripts](utilisation.md) · [Tous les guides](../README.md#choisir-un-script)
+
 Cette configuration vise le poste CachyOS avec Niri. Le fichier versionné sélectionne Catppuccin Macchiato et JetBrainsMono Nerd Font. Le dépôt ne déploie aucun fichier par sa simple présence ; les commandes ci-dessous restent à examiner avant application.
 
-## 📁 Structure des fichiers
+## Structure des fichiers
 
 ```
 kitty/
 ├── kitty.conf              # Configuration principale
-├── themes/
-│   ├── gruvbox.conf        # Variante disponible
-│   ├── catppuccin-macchiato.conf # Thème actif
-│   ├── dracula.conf
-│   ├── nord.conf
-│   └── ...
-└── README.md               # Ce fichier
+└── themes/
+    ├── gruvbox.conf        # Variante disponible
+    ├── catppuccin-macchiato.conf # Thème actif
+    ├── dracula.conf
+    ├── nord.conf
+    └── ...
 ```
 
-## 🎨 Thème
+## Thème
 
 ### Catppuccin Macchiato
 
@@ -25,9 +26,10 @@ Les variantes Gruvbox, Dracula et Nord restent fournies pour une sélection manu
 L'opacité active est `0.85`. Le curseur est explicitement surchargé par
 `cursor_color #928374` dans `kitty.conf`.
 
-## ⚙️ Configuration détaillée
+## Configuration détaillée
 
 ### Fenêtre et affichage
+
 - **Dimensions initiales** : 1050 × 600 dans le fichier ; taille effective en mosaïque déterminée par Niri
 - **Espacement** : 10px de padding
 - **Décorations** : Non masquées par le fichier (`hide_window_decorations no`)
@@ -38,23 +40,27 @@ L'opacité active est `0.85`. Le curseur est explicitement surchargé par
 - **Ouverture d'URL** : Utilise l'application par défaut
 
 ### Police
+
 - **Famille** : JetBrainsMono Nerd Font
 - **Taille** : 12.0 points dans la source ; le mode copie préserve la taille existante
 - **Ligatures** : Activées pour une meilleure typographie
 - **Variations** : Auto pour gras/italique/bold-italic
 
 ### Curseur
+
 - **Forme** : Bloc (`block`)
 - **Couleur** : `#928374` (gris Gruvbox)
 - **Clignotement** : Intervalle de 0.5s, arrêt après 1s
 - **Trail** : Traînée activée (niveau 1)
 
 ### Onglets
+
 - **Position** : En haut (`tab_bar_edge top`)
 - **Style** : Powerline avec style incliné (`slanted`)
 - **Template** : Affiche le titre et le nombre de fenêtres si > 1
 
 ### Comportement
+
 - **Historique** : 2 000 lignes de scrollback
 - **Indicateur scrollback** : Opacité 0 (invisible)
 - **Défilement molette** : Minimum 1 ligne
@@ -73,6 +79,7 @@ raccourcis Linux par défaut de Kitty et peuvent être surchargées localement.
 [Référence Kitty](https://sw.kovidgoyal.net/kitty/conf/#keyboard-shortcuts)
 
 ### Gestion des onglets
+
 - `Ctrl+Tab` : Onglet suivant
 - `Ctrl+Shift+Tab` : Onglet précédent
 - `Ctrl+Shift+T` : Nouvel onglet
@@ -85,15 +92,18 @@ raccourcis Linux par défaut de Kitty et peuvent être surchargées localement.
 - `Ctrl+Maj+L` change de disposition
 
 ### Navigation et scroll
+
 - `Ctrl+Shift+Haut/Bas` : Ligne par ligne
 - `Ctrl+Shift+Page Haut/Bas` : Page par page
 - `Ctrl+Shift+Home/End` : Début/Fin du buffer
 
 ### Copier-coller
+
 - `Ctrl+Shift+C` : Copier
 - `Ctrl+Shift+V` : Coller
 
 ### Taille de police
+
 - `Ctrl+Shift+Plus` : Augmenter la police (+2.0pt)
 - `Ctrl+Shift+Moins` : Diminuer la police (-2.0pt)
 - `Ctrl+Maj+Retour arrière` réinitialise la taille
@@ -101,6 +111,7 @@ raccourcis Linux par défaut de Kitty et peuvent être surchargées localement.
 - `Ctrl+Shift+KP_Subtract` : Diminuer (pavé numérique)
 
 ### Autres
+
 - `Ctrl+Shift+F11` : Plein écran
 - `Ctrl+Shift+F2` : Éditer la configuration
 - `Ctrl+Maj+F3` affiche la palette d’actions
@@ -114,7 +125,7 @@ Le fichier `quick-access-terminal.conf` prépare des préférences pour un termi
 d'accès rapide, mais aucun lancement ni raccourci Niri n'est ajouté automatiquement.
 Le comportement réel reste à valider sous CachyOS.
 
-## 🚀 Performance
+## Organisation du fichier
 
 ### Structure de la configuration
 
@@ -133,9 +144,10 @@ Le fichier `kitty.conf` est organisé en sections numérotées et commentées :
 11. **Raccourcis - Éditeur & Presse-papiers** : Copier-coller et édition config
 12. **Anciennes options macOS** : Exemples commentés
 
-## 🛠️ Personnalisation
+## Personnalisation
 
 ### Changer de thème
+
 1. Commentez la ligne actuelle dans `kitty.conf` :
    ```conf
    # include ~/.config/kitty/themes/catppuccin-macchiato.conf
@@ -200,13 +212,14 @@ stow --dir="$PWD/Dotfiles" --target="$HOME" --no-folding --simulate --verbose \
 ```
 
 Sauvegarder les conflits puis, après autorisation, retirer `--simulate` pour
-appliquer. Ne pas utiliser `--adopt`. Stow manuel lie aussi ce README et ne crée
+appliquer. Ne pas utiliser `--adopt`. La documentation reste dans `docs/`. Stow manuel ne crée
 aucune sauvegarde automatique. Fermer et rouvrir Kitty pour vérifier le rendu
 une fois les configurations déployées.
 
-## 🔧 Dépannage
+## Dépannage
 
 ### Problèmes courants
+
 - **Police non trouvée** : Installez JetBrainsMono Nerd Font
 - **Thème ne s'applique pas** : Vérifiez le chemin du fichier de thème
 - **Raccourcis** : Les exemples `map` sont commentés ; vérifier les raccourcis actifs et ceux de Niri
@@ -217,14 +230,14 @@ Activer le mode debug :
 kitty --debug-config
 ```
 
-## 📚 Ressources
+## Ressources
 
 - [Documentation Kitty](https://sw.kovidgoyal.net/kitty/)
 - [Thèmes Kitty](https://github.com/kovidgoyal/kitty-themes)
 - [Gruvbox Theme](https://github.com/morhetz/gruvbox)
 - [Référence de configuration](https://sw.kovidgoyal.net/kitty/conf.html)
 
-## 📝 Notes
+## Notes
 
 - Configuration organisée en sections numérotées pour faciliter la maintenance
 - Tous les paramètres sont commentés en français

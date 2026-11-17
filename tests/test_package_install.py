@@ -76,6 +76,8 @@ class PackageInstallTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
+        (self.root / "scripts").mkdir()
+        (self.root / "scripts/bilan.sh").write_text((SCRIPT.parent / "scripts/bilan.sh").read_text())
         self.bin = self.root / 'bin'
         self.bin.mkdir()
         fake = self.bin / 'fake'

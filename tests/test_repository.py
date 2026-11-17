@@ -17,7 +17,7 @@ class RepositoryTests(unittest.TestCase):
         rows = re.findall(r'^\| `[^`]+` \| (.*?) \|$', catalogue, re.M)
         documented = [item for row in rows for item in re.findall(r'`([^`]+)`', row)]
         self.assertEqual(documented, packages)
-        for filename in ('README.md', 'docs/README.md', 'docs/package-install.md', 'docs/flatpak-install.md'):
+        for filename in ('README.md', 'docs/package-install.md', 'docs/flatpak-install.md'):
             self.assertIn(f'{len(packages)} paquets', (ROOT / filename).read_text(), filename)
 
     def test_zsh_module_list_matches_engine(self):
@@ -28,7 +28,7 @@ class RepositoryTests(unittest.TestCase):
                       and any(isinstance(t, ast.Name) and t.id == 'MODULES' for t in node.targets))
         self.assertEqual(modules, list(engine))
         self.assertIn(','.join(modules), (ROOT / 'docs/zsh.md').read_text())
-        self.assertIn(f'{len(modules)} modules', (ROOT / 'docs/README.md').read_text())
+        self.assertIn(f'{len(modules)} modules', (ROOT / 'README.md').read_text())
 
     def test_test_script_references_exist(self):
         for file in (ROOT / 'tests').glob('test_*.py'):
@@ -50,7 +50,7 @@ class RepositoryTests(unittest.TestCase):
                 self.assertTrue((file.parent / unquote(target)).exists(), f'{file.relative_to(ROOT)} : {target}')
 
     def test_archives_are_identified_and_preserved(self):
-        text = (ROOT / 'config/zsh/README.md').read_text()
+        text = (ROOT / 'docs/dotfiles.md').read_text()
         self.assertIn('archives', text)
         self.assertTrue((ROOT / 'config/zsh/zshrc.zsh').is_file())
         self.assertTrue((ROOT / 'config/zsh/aliases.zsh').is_file())

@@ -1,18 +1,19 @@
-# Fastfetch Configuration
+# Configuration Fastfetch
+
+[Accueil](../README.md) · [Utiliser les scripts](utilisation.md) · [Tous les guides](../README.md#choisir-un-script)
 
 Configuration personnalisée pour Fastfetch avec affichage organisé par sections et icônes Nerd Font.
 
-## 📁 Structure
+## Structure
 
 ```
 fastfetch/
 └── .config/
     └── fastfetch/
-        ├── config.jsonc    # Configuration principale
-        └── README.md       # Documentation
+        └── config.jsonc    # Configuration principale
 ```
 
-## 🎯 Vue d'ensemble
+## Présentation
 
 Cette configuration affiche les informations système de manière organisée avec :
 - **Icônes Nerd Font** pour une présentation visuelle
@@ -20,15 +21,17 @@ Cette configuration affiche les informations système de manière organisée ave
 - **Séparateurs personnalisés** pour une structure claire
 - **Modules organisés** par catégories logiques
 
-## 📊 Modules affichés
+## Modules affichés
 
-### 🖥️ Section Système (Jaune)
+### Section Système (Jaune)
+
 - **OS** - Système d'exploitation avec icône de distribution
 - **Kernel** - Version du noyau
 - **Packages** - Nombre de paquets installés
 - **Shell** - Shell utilisé
 
-### 🎨 Section Environnement Desktop (Bleu)
+### Section Environnement Desktop (Bleu)
+
 - **DE/WM** - Environnement de bureau ou gestionnaire de fenêtres
 - **Login Manager** - Gestionnaire de connexion
 - **Theme** - Thème du gestionnaire de fenêtres
@@ -36,7 +39,8 @@ Cette configuration affiche les informations système de manière organisée ave
 - **Terminal** - Émulateur de terminal
 - **Wallpaper** - Fond d'écran actuel
 
-### 💻 Section Matériel (Vert)
+### Section Matériel (Vert)
+
 - **PC** - Informations sur l'hôte
 - **CPU** - Processeur
 - **GPU** - Carte graphique
@@ -46,15 +50,17 @@ Cette configuration affiche les informations système de manière organisée ave
 - **Display** - Résolution d'écran
 - **Uptime** - Temps de fonctionnement
 
-### 🔊 Section Audio (Cyan)
+### Section Audio (Cyan)
+
 - **Sound** - Informations audio
 - **Player** - Lecteur multimédia actif
 - **Media** - Média en cours de lecture
 
-### 🌈 Section Couleurs
+### Section Couleurs
+
 - **Colors** - Palette de couleurs du terminal
 
-## ⚙️ Configuration
+## Configuration
 
 ### Format du fichier
 Le fichier utilise le format **JSONC** (JSON avec commentaires) pour une meilleure lisibilité.
@@ -98,7 +104,7 @@ Il passe par les dépôts officiels activés et les confirmations de ce script ;
 aucun recours à l'AUR n'est nécessaire dans ce parcours. L'installation du
 logiciel ne déploie pas ce fichier de configuration.
 
-Le paquet Stow `fastfetch` est indépendant des 15 modules gérés par
+Le paquet Stow `fastfetch` est indépendant des 16 modules gérés par
 `04 - install_zsh.sh` : `--only fastfetch` n'est pas pris en charge.
 Depuis la racine du dépôt, avec GNU Stow déjà installé, examiner le plan :
 
@@ -109,7 +115,7 @@ stow --dir="$PWD/Dotfiles" --target="$HOME" --no-folding --simulate --verbose \
 
 Examiner et sauvegarder les éventuels fichiers en conflit avant toute application.
 Après autorisation, retirer `--simulate` pour créer les liens ; ne pas utiliser
-`--adopt`. Ce paquet lie aussi le présent README dans `~/.config/fastfetch/`.
+`--adopt`. La documentation reste dans `docs/`.
 Les liens manuels ne créent aucune sauvegarde ni journal de restauration.
 
 Sur la machine cible, une fois le logiciel disponible, cette commande permet
@@ -132,7 +138,7 @@ Pour retirer les liens, examiner le plan ci-dessus en remplaçant `--stow` par
 `--delete`, puis l'appliquer seulement après accord. Cela ne désinstalle pas
 Fastfetch et ne restaure pas les fichiers antérieurs ; conserver les sauvegardes.
 
-## 🎨 Personnalisation
+## Personnalisation
 
 ### Modifier les couleurs
 Chaque section utilise une couleur différente. Pour changer une couleur :
@@ -173,11 +179,12 @@ Les icônes proviennent de Nerd Fonts. Vous pouvez :
 - Remplacer les codes Unicode dans les clés `key`
 - Utiliser des emojis ou du texte simple si vous n'avez pas Nerd Fonts
 
-## 🔧 Modules disponibles
+## Modules disponibles
 
 Fastfetch supporte de nombreux modules. Voici quelques exemples :
 
 ### Système
+
 - `title` - Titre avec logo ASCII
 - `separator` - Ligne de séparation
 - `break` - Saut de ligne
@@ -188,6 +195,7 @@ Fastfetch supporte de nombreux modules. Voici quelques exemples :
 - `shell` - Shell utilisé
 
 ### Matériel
+
 - `host` - Nom de l'hôte
 - `cpu` - Processeur
 - `gpu` - Carte graphique
@@ -197,6 +205,7 @@ Fastfetch supporte de nombreux modules. Voici quelques exemples :
 - `display` - Résolution d'écran
 
 ### Logiciel
+
 - `wm` - Gestionnaire de fenêtres
 - `de` - Environnement de bureau
 - `wmtheme` - Thème du WM
@@ -206,40 +215,45 @@ Fastfetch supporte de nombreux modules. Voici quelques exemples :
 - `media` - Média en cours
 
 ### Autres
+
 - `colors` - Palette de couleurs
 - `wallpaper` - Fond d'écran
 - `sound` - Informations audio
 
-## 📝 Notes
+## Notes
 
 - **Format JSONC** : Le fichier utilise `.jsonc` pour permettre les commentaires
 - **Nerd Fonts requis** : Pour afficher correctement les icônes, installez une police Nerd Font
 - **Logo ASCII** : Le logo peut être personnalisé ou désactivé selon vos préférences
 - **Performance** : Fastfetch est optimisé pour être rapide et léger
 
-## 🐛 Dépannage
+## Dépannage
 
 ### Les icônes ne s'affichent pas correctement
+
 - Installez une police Nerd Font (JetBrainsMono, FiraCode, etc.)
 - Configurez votre terminal pour utiliser cette police
 - Redémarrez votre terminal
 
 ### La configuration ne se charge pas
+
 - Vérifiez le chemin du fichier de configuration
 - Utilisez `--config` avec le chemin complet
 - Vérifiez la syntaxe JSONC (les commentaires doivent être valides)
 
 ### Certains modules ne s'affichent pas
+
 - Certains modules nécessitent des outils système spécifiques
 - Vérifiez que les commandes système sont disponibles
 - Consultez la documentation Fastfetch pour les prérequis
 
 ### Erreur de schéma JSON
+
 - Vérifiez que le schéma est accessible en ligne
 - Assurez-vous que la syntaxe JSONC est valide
 - Utilisez un éditeur avec validation JSON
 
-## 🔗 Ressources
+## Ressources
 
 - [Documentation officielle Fastfetch](https://github.com/fastfetch-cli/fastfetch)
 - [Schéma JSON de configuration](https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json)

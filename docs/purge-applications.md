@@ -1,5 +1,7 @@
 # Désinstaller des applications et retirer leurs configurations
 
+[Accueil](../README.md) · [Utiliser les scripts](utilisation.md) · [Tous les guides](../README.md#choisir-un-script)
+
 `09 - purge_applications.sh` détecte les applications de son catalogue au
 démarrage. Lance-le depuis le compte CachyOS concerné. La simulation est le
 mode par défaut et affiche les cibles sans sudo ni écriture.

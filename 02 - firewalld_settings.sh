@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Gérer UFW ou firewalld, ou configurer les règles d'un firewalld déjà actif.
 set -Eeuo pipefail
+
+# Bilan commun ; conserver le dossier scripts/ à côté de ce fichier.
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/scripts/bilan.sh"
+bilan_init "02 · Pare-feu" "$@"
 DRY_RUN=false
 INTERACTIVE=false
 DEFAULT_ZONE=home
@@ -26,23 +30,13 @@ fi
 info()  { printf '  %b%-12s%b %s\n' "$BOLD" 'Info' "$RESET" "$*"; }
 ok()    { printf '  %b[OK]%b %s\n' "$GREEN" "$RESET" "$*"; }
 warn()  { printf '  %b[Attention]%b %s\n' "$YELLOW" "$RESET" "$*"; }
-error() { printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$*" >&2; }
+error() { bilan_erreur "$*"; printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$*" >&2; }
 fatal() { error "$*"; exit 1; }
 dry()   { printf '  %b[Simulation]%b %s\n' "$CYAN" "$RESET" "$*"; }
-step()  { printf '\n%b── %s/4  %s%b\n' "$CYAN" "$1" "$2" "$RESET"; }
+step()  { BILAN_ETAPE="$*"; printf '\n%b── %s/4  %s%b\n' "$CYAN" "$1" "$2" "$RESET"; }
 
 print_report() {
-  local status="$1" entry
-  step 4 'Rapport final'
-  for entry in ${REPORT[@]+"${REPORT[@]}"}; do info "$entry"; done
-  if [[ -n "$SESSION" ]]; then printf '  %b[Sauvegarde]%b %s\n' "$VIOLET" "$RESET" "$SESSION"; fi
-  if (( status != 0 )); then
-    error "Opération interrompue ou incomplète (code $status). Consultez les détails ci-dessus."
-  elif $DRY_RUN; then
-    dry 'Simulation terminée.'
-  else
-    ok 'Opération terminée.'
-  fi
+    bilan_print "$1"
 }
 
 usage() {
@@ -185,8 +179,10 @@ preview_action() {
 perform_action() {
   local command
   printf -v command '%q ' "$@"
+  bilan_debut
   info "Exécution : ${command% }"
   if "$@"; then
+    bilan_action "Commande terminée : ${command% }"
     ok "Commande réussie : ${command% }"
     REPORT+=("Commande réussie : ${command% }")
   else
@@ -307,6 +303,7 @@ run_interactive() {
     disable_commands preview_action "$target"
   fi
   if [[ -z "$target" && -z "$gui" ]]; then
+    bilan_ignore 'Aucune modification demandée.'
     REPORT+=('Aucune modification demandée.')
   elif $DRY_RUN; then
     REPORT+=('Actions prévues affichées à l’étape 3. Aucune modification appliquée.')
@@ -316,7 +313,7 @@ run_interactive() {
     IFS= read -r answer || fatal 'Confirmation non reçue.'
     case "$answer" in
       o|O|oui|OUI) ;;
-      *) REPORT+=('Annulé. Aucune modification appliquée.' "$before"); return 0 ;;
+      *) bilan_annule 'Modifications du pare-feu refusées.'; REPORT+=('Annulé. Aucune modification appliquée.' "$before"); return 0 ;;
     esac
     detect_firewalls
     [[ "$(describe_firewalls)" == "$before" ]] || fatal 'État modifié depuis l’aperçu ; relancez le script.'
@@ -425,7 +422,7 @@ if $DRY_RUN; then
 fi
 [[ $EUID -eq 0 ]] || fatal 'Application avec sudo requise ; examiner d’abord --dry-run.'
 if [[ "$OLD_ZONE" == "$DEFAULT_ZONE" && ${#MISSING_RUNTIME[@]} -eq 0 && ${#MISSING_PERMANENT[@]} -eq 0 ]]; then
-  REPORT+=('Configuration déjà conforme.'); exit 0
+  bilan_ignore 'Zone et règles déjà conformes.'; REPORT+=('Configuration déjà conforme.'); exit 0
 fi
 step 3 'Sauvegarder et appliquer les règles'
 for cmd in mktemp chmod cp bash; do command -v "$cmd" >/dev/null || fatal "Commande absente : $cmd"; done
@@ -433,7 +430,7 @@ info 'Une modification de zone peut interrompre une connexion. Prévoir un accè
 info 'Sauvegarde sous /var/tmp ; retour arrière ciblé avant toute autre modification volontaire.'
 printf 'Autoriser la sauvegarde puis les modifications annoncées ? [o/N] '
 IFS= read -r answer || fatal 'Confirmation non reçue.'
-case "$answer" in o|O|oui|OUI) ;; *) REPORT+=('Annulé. Aucune modification appliquée.'); exit 0 ;; esac
+case "$answer" in o|O|oui|OUI) ;; *) bilan_annule 'Modifications du pare-feu refusées.'; REPORT+=('Annulé. Aucune modification appliquée.'); exit 0 ;; esac
 APPROVED_PLAN="$PLAN"
 read_plan
 [[ "$PLAN" == "$APPROVED_PLAN" ]] || fatal 'État modifié depuis l’aperçu ; relancer.'
@@ -468,6 +465,8 @@ rollback_on_exit() {
   if (( status != 0 )) && $ROLLBACK_READY; then
     info "Échec : tentative de retour arrière ; sauvegarde conservée : $SESSION"
     if bash "$UNDO"; then
+      BILAN_RETOUR_ARRIERE=true
+      bilan_note 'Retour arrière ciblé exécuté après l’échec ; vérifier l’état réseau.'
       REPORT+=('Retour arrière exécuté après l’échec.')
     else
       REPORT+=("Retour arrière incomplet. Examiner $UNDO depuis un accès local.")
@@ -493,4 +492,5 @@ if [[ "$OLD_ZONE" != "$DEFAULT_ZONE" ]]; then perform_action firewall-cmd --set-
 read_plan
 [[ "$OLD_ZONE" == "$DEFAULT_ZONE" && ${#MISSING_RUNTIME[@]} -eq 0 && ${#MISSING_PERMANENT[@]} -eq 0 ]] || fatal 'Configuration finale non confirmée.'
 ROLLBACK_READY=false
+bilan_note "Accès SSH/Samba à valider sur le réseau pour la zone $DEFAULT_ZONE."
 REPORT+=("Zone $DEFAULT_ZONE et règles sélectionnées vérifiées. Accès SSH/Samba à valider sur le réseau.")

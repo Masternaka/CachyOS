@@ -64,6 +64,8 @@ class PacmanSettingsTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        (self.root / "scripts").mkdir()
+        (self.root / "scripts/bilan.sh").write_text((SCRIPT.parent / "scripts/bilan.sh").read_text())
         self.conf = self.root / 'pacman.conf'
         self.original = '[options]\n# Exemple conservé\n# ParallelDownloads = 5\nParallelDownloads=2\n[core]\nServer = https://example.invalid\n'
         self.conf.write_text(self.original)
@@ -195,6 +197,8 @@ class PacmanSettingsTests(unittest.TestCase):
         result = self.run_script('--value', '8')
         self.assertEqual(result.returncode, 1)
         self.assertIn('configuration précédente rétablie', result.stderr)
+        self.assertEqual(result.stderr.count('── Bilan de l’opération'), 1)
+        self.assertIn('Résultat     : Échoué', result.stderr)
         self.assertEqual(self.conf.read_text(), self.original)
         self.assertEqual(self.saved()[0].read_text(), self.original)
         self.assert_clean()

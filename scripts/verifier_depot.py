@@ -15,7 +15,7 @@ def main():
     parser.add_argument('--statique', action='store_true', help='Syntaxes et cohérence documentaire seulement, sans tests écrivant des fixtures.')
     args = parser.parse_args()
     failures = 0
-    for source in sorted(ROOT.glob('*.sh')):
+    for source in sorted([*ROOT.glob('*.sh'), *(ROOT / 'scripts').glob('*.sh')]):
         result = subprocess.run(['bash', '-n', str(source)])
         failures += result.returncode != 0
     for folder in ('scripts', 'tests'):

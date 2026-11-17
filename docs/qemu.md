@@ -1,5 +1,7 @@
 # Installer QEMU/KVM et Virt-Manager
 
+[Accueil](../README.md) · [Utiliser les scripts](utilisation.md) · [Tous les guides](../README.md#choisir-un-script)
+
 `07 - install_qemu.sh` prépare la virtualisation sur CachyOS x86_64 avec
 systemd. Lancer depuis le compte qui utilisera Virt-Manager. Les commandes
 système utilisent `sudo` après confirmation.

@@ -104,6 +104,7 @@ class InstallZshTests(unittest.TestCase):
         shutil.copytree(ROOT / 'Dotfiles', self.repo / 'Dotfiles')
         (self.repo / 'scripts').mkdir()
         shutil.copyfile(ROOT / 'scripts/zsh_deploy.py', self.repo / 'scripts/zsh_deploy.py')
+        shutil.copyfile(ROOT / 'scripts/bilan.sh', self.repo / 'scripts/bilan.sh')
         source = (ROOT / '04 - install_zsh.sh').read_text().replace('[[ $EUID -ne 0 ]]', '[[ 1 -eq 1 ]]', 1)
         import shlex
         self.shells = self.root / 'shells'

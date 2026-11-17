@@ -1,6 +1,8 @@
 # Installer et configurer les outils du terminal sous CachyOS
 
-`04 - install_zsh.sh` utilise les fichiers de [Dotfiles](../Dotfiles/README.md)
+[Accueil](../README.md) · [Utiliser les scripts](utilisation.md) · [Tous les guides](../README.md#choisir-un-script)
+
+`04 - install_zsh.sh` utilise les fichiers de [Dotfiles](dotfiles.md)
 pour installer les outils sélectionnés, déployer leurs configurations, préparer
 Zsh et sélectionner **JetBrainsMono Nerd Font dans Kitty et Foot**.
 
@@ -53,7 +55,7 @@ configuration ni paquet Stow ; `df` et ses alias existants sont conservés.
 Le dossier Dotfiles contient 17 paquets Stow au total. Les configurations
 supplémentaires `ghostty` et `fastfetch` ne sont pas des modules de cet
 installateur et ne peuvent pas être passées à `--only`. Leur déploiement séparé
-est décrit dans le [catalogue Dotfiles](../Dotfiles/README.md#ghostty-et-fastfetch).
+est décrit dans le [catalogue Dotfiles](dotfiles.md#ghostty-et-fastfetch).
 
 Pour préparer seulement certains modules :
 

@@ -1,5 +1,7 @@
 # Ajouter le dépôt master-archrepo
 
+[Accueil](../README.md) · [Utiliser les scripts](utilisation.md) · [Tous les guides](../README.md#choisir-un-script)
+
 `08 - install-master-archrepo.sh` configure le dépôt Pacman public qui
 distribue SambaPilot et DotfilePilot. Il s’utilise sur CachyOS Linux x86_64
 avec `sudo`. Il requiert notamment `curl`, `gpg`, `gpgv`, `pacman-conf` et

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Purge ciblée des paquets et des configurations du compte courant.
 set -euo pipefail
+
+# Bilan commun ; conserver le dossier scripts/ à côté de ce fichier.
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/scripts/bilan.sh"
+bilan_init "09 · Purge des applications" "$@"
 export LC_ALL=C
 
 APPLY=false
@@ -30,12 +34,12 @@ if [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
     fi
     if [[ -t 2 ]]; then RED='\033[1;31m' ERROR_RESET='\033[0m'; fi
 fi
-step() { printf '\n%b── %s%b\n' "$CYAN" "$1" "$RESET"; }
+step() { BILAN_ETAPE="$*"; printf '\n%b── %s%b\n' "$CYAN" "$1" "$RESET"; }
 info() { printf '  %s\n' "$*"; }
 status_line() { printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3"; }
 ok() { status_line "$GREEN" 'OK' "$*"; }
 warn() { status_line "$YELLOW" 'Attention' "$*"; }
-fatal() { printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$*" >&2; exit 1; }
+fatal() { bilan_erreur "$*"; printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$*" >&2; exit 1; }
 show_command() { printf ' '; printf ' %q' "$@"; printf '\n'; }
 show_help() {
     cat <<'HELP'
@@ -245,7 +249,7 @@ if $CATALOGUE_MODE; then
             FLATPAKS+=("${CATALOGUE_NAMES[number]}")
         fi
     done
-    if (( ${#NATIVE[@]} + ${#FLATPAKS[@]} == 0 )); then info 'Aucune cible sélectionnée.'; exit 0; fi
+    if (( ${#NATIVE[@]} + ${#FLATPAKS[@]} == 0 )); then bilan_annule 'Aucune cible sélectionnée.'; info 'Aucune cible sélectionnée.'; exit 0; fi
 fi
 if (( ${#CONFIGS[@]} > 0 )); then check_config_home; fi
 
@@ -366,7 +370,7 @@ if (( ${#NATIVE_TARGETS[@]} > 0 )); then command -v sudo >/dev/null || fatal 'su
 warn 'Fermer les applications concernées avant la purge. Une désinstallation peut affecter une application ou un service en cours d’utilisation.'
 printf 'Taper PURGER pour confirmer le plan : '
 IFS= read -r answer || fatal 'Confirmation non reçue.'
-if [[ "$answer" != PURGER ]]; then info 'Purge annulée.'; exit 0; fi
+if [[ "$answer" != PURGER ]]; then bilan_annule 'Purge refusée avant désinstallation.'; info 'Purge annulée.'; exit 0; fi
 approved=$(plan_signature)
 read_plan
 [[ "$(plan_signature)" == "$approved" ]] || fatal 'Le plan a changé. Relancer pour le vérifier.'
@@ -376,6 +380,7 @@ on_exit() {
     if (( status != 0 )) && [[ -n "$SNAPSHOT" ]]; then
         warn "Purge incomplète. Consulter le rapport et les sauvegardes : $SNAPSHOT"
     fi
+    bilan_print "$status"
 }
 trap 'on_exit "$?"' EXIT
 trap 'exit 130' INT
@@ -415,6 +420,7 @@ fi
 
 step '3 · Désinstaller les applications'
 if (( ${#FLATPAK_TARGETS[@]} > 0 )); then
+    bilan_debut
     flatpak uninstall --user --app --no-related -- "${FLATPAK_TARGETS[@]}" ||
         fatal 'La désinstallation Flatpak a échoué ou a été annulée.'
     installed=$(flatpak list --user --app --columns=ref) || fatal 'État Flatpak final indisponible.'
@@ -422,6 +428,7 @@ if (( ${#FLATPAK_TARGETS[@]} > 0 )); then
         if contains_line "$installed" "$target" || contains_line "$installed" "${target#app/}"; then
             fatal "Application Flatpak encore installée : $target."
         fi
+        bilan_action "Application Flatpak retirée et absence vérifiée : $target"
         status_line "$GREEN" 'Flatpak retiré' "$target"
     done
 fi
@@ -429,10 +436,12 @@ if (( ${#NATIVE_TARGETS[@]} > 0 )); then
     current_transaction=$(preview_native_removal "${NATIVE_TARGETS[@]}") ||
         fatal 'La suppression des paquets natifs est devenue impossible.'
     [[ "$current_transaction" == "$NATIVE_TRANSACTION" ]] || fatal 'Le plan Pacman a changé depuis la sauvegarde.'
+    bilan_debut
     sudo pacman -Rn -- "${NATIVE_TARGETS[@]}" || fatal 'La désinstallation Pacman a échoué ou a été annulée.'
     installed=$(pacman -Qq) || fatal 'Lecture de l’état Pacman après la tentative impossible.'
     for target in "${NATIVE_TARGETS[@]}"; do
         if contains_line "$installed" "$target"; then fatal "Paquet encore installé : $target."; fi
+        bilan_action "Paquet retiré et absence vérifiée : $target"
         status_line "$GREEN" 'Paquet retiré' "$target"
     done
 fi
@@ -441,14 +450,16 @@ step '4 · Mettre de côté les configurations et afficher le bilan'
 for index in "${!CONFIG_TARGETS[@]}"; do
     path="${CONFIG_TARGETS[index]}"
     check_config_parents "$path"
-    if [[ ! -e "$path" && ! -L "$path" ]]; then status_line "$BLUE" 'Configuration déjà absente' "$path"; continue; fi
+    if [[ ! -e "$path" && ! -L "$path" ]]; then bilan_ignore "Configuration déjà absente : $path"; status_line "$BLUE" 'Configuration déjà absente' "$path"; continue; fi
     [[ "$(stat -c '%d:%i:%f' -- "$path")" == "${CONFIG_IDS[index]}" ]] ||
         fatal "Configuration remplacée depuis l’aperçu : $path."
     destination="$SNAPSHOT/fichiers/${path#"$HOME/"}"
     mkdir -p -- "${destination%/*}"
     [[ "$(stat -c '%d' -- "$path")" == "$(stat -c '%d' -- "$SNAPSHOT")" ]] ||
         fatal "Mettre de côté manuellement, sur le même système de fichiers : $path."
+    bilan_debut
     mv -T -- "$path" "$destination"
+    bilan_action "Configuration mise de côté : $path"
     status_line "$VIOLET" 'Configuration sauvegardée' "$path"
 done
 ok "${#NATIVE_TARGETS[@]} paquet(s) Pacman et ${#FLATPAK_TARGETS[@]} application(s) Flatpak retirés."

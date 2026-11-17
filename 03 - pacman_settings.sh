@@ -2,6 +2,10 @@
 
 set -Eeuo pipefail
 
+# Bilan commun ; conserver le dossier scripts/ à côté de ce fichier.
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/scripts/bilan.sh"
+bilan_init "03 · Réglages Pacman" "$@"
+
 PACMAN_CONF="/etc/pacman.conf"
 BACKUP_DIR="/etc/pacman.conf.backups"
 LOG_FILE="${ARCH_CUSTOM_LOGFILE:-/var/log/pacman_parallel_downloads.log}"
@@ -57,10 +61,10 @@ detail() { status_line "$BOLD" "$1" "$2"; }
 ok() { status_line "$GREEN" 'OK' "$*"; }
 dry() { status_line "$CYAN" 'Simulation' "$*"; }
 warn() { status_line "$YELLOW" 'Attention' "$*"; }
-step() {
+step() { BILAN_ETAPE="$*";
     if ! $SILENT_MODE; then printf '\n%b── %s/3  %s%b\n' "$CYAN" "$1" "$2" "$RESET" >&2; fi
 }
-error() { printf '  %b[Échec]%b %s\n' "$RED" "$RESET" "$*" >&2; }
+error() { bilan_erreur "$*"; printf '  %b[Échec]%b %s\n' "$RED" "$RESET" "$*" >&2; }
 fatal() { error "$1"; exit "${2:-1}"; }
 
 # Fonction de journalisation : jamais sur stdout, jamais d'écriture en dry-run.
@@ -269,6 +273,7 @@ cleanup() {
         else
             error "RESTAURATION AUTOMATIQUE IMPOSSIBLE. Sauvegarde : $BACKUP_FILE ; instantané : $SNAPSHOT"
             # Conserver les fichiers pour une récupération manuelle.
+            bilan_print 1
             exit 1
         fi
         status=1
@@ -276,6 +281,7 @@ cleanup() {
     for file in "$SNAPSHOT" "$CANDIDATE" "$LATEST_CANDIDATE"; do
         if [[ -n "$file" ]]; then rm -f -- "$file" || status=1; fi
     done
+    bilan_print "$status"
     exit "$status"
 }
 
@@ -338,6 +344,7 @@ fi
 ok "Configuration préparée et validée. Valeur effective prévue : $EXPECTED_VALUE"
 if cmp -s -- "$CANDIDATE" "$SNAPSHOT"; then
     step 3 'Vérifier le résultat'
+    bilan_ignore 'La configuration correspond déjà à la demande.'
     status_line "$BLUE" 'Inchangé' 'La configuration correspond déjà au résultat demandé.'
     exit 0
 fi
@@ -364,11 +371,13 @@ log_message "$VIOLET" 'Sauvegarde' "Sauvegarde avant modification : $BACKUP_FILE
 [[ ! -L "$PACMAN_CONF" ]] && cmp -s -- "$PACMAN_CONF" "$SNAPSHOT" \
     || fatal 'Configuration modifiée pendant la préparation ; application annulée.'
 
+bilan_debut
 COMMIT_PENDING=true
 mv -f -- "$CANDIDATE" "$PACMAN_CONF"
 validate_pacman_syntax "$PACMAN_CONF" || exit 1
 [[ "$EFFECTIVE_VALUE" == "$EXPECTED_VALUE" ]] || fatal 'Valeur effective différente après remplacement.'
 COMMIT_PENDING=false
+bilan_action "Configuration validée : ParallelDownloads effectif = $EFFECTIVE_VALUE."
 if [[ "$MODE" == restore ]]; then result_label='Restauré'; else result_label='Appliqué'; fi
 log_message "$GREEN" "$result_label" "Modification validée. ParallelDownloads effectif : $EFFECTIVE_VALUE"
 status_line "$VIOLET" 'Retour arrière' "sudo bash \"$0\" --restore \"$BACKUP_FILE\""

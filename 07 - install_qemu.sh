@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Poste CachyOS x86_64 : QEMU/KVM, libvirt local et Virt-Manager.
 set -Eeuo pipefail
+
+# Bilan commun ; conserver le dossier scripts/ à côté de ce fichier.
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/scripts/bilan.sh"
+bilan_init "07 · QEMU et Virt-Manager" "$@"
 export LC_ALL=C
 
 DRY_RUN=false
@@ -17,12 +21,12 @@ if [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
     fi
     if [[ -t 2 ]]; then RED='\033[1;31m' ERROR_RESET='\033[0m'; fi
 fi
-step() { printf '\n%b── %s/%s  %s%b\n' "$CYAN" "$1" "$STEPS" "$2" "$RESET"; }
+step() { BILAN_ETAPE="$*"; printf '\n%b── %s/%s  %s%b\n' "$CYAN" "$1" "$STEPS" "$2" "$RESET"; }
 info() { printf '  %s\n' "$*"; }
 status_line() { printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3"; }
 ok() { status_line "$GREEN" 'OK' "$*"; }
 warn() { status_line "$YELLOW" 'Attention' "$*"; }
-fatal() { printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$*" >&2; exit 1; }
+fatal() { bilan_erreur "$*"; printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$*" >&2; exit 1; }
 confirm() {
     local answer
     printf '%s [o/N] ' "$1"
@@ -54,11 +58,14 @@ HELP
     esac
 done
 
+if ! $NETWORK; then bilan_ignore 'Préparation du réseau NAT passée (--no-network).'; fi
+
 on_exit() {
     local status=$1
     if (( status != 0 )) && [[ -n "$SNAPSHOT" ]]; then
         warn "Opération incomplète. Inventaire privé : $SNAPSHOT"
     fi
+    bilan_print "$status"
 }
 trap 'on_exit "$?"' EXIT
 trap 'exit 130' INT
@@ -174,14 +181,16 @@ create_snapshot() {
     status_line "$VIOLET" 'Sauvegarde privée' "$SNAPSHOT"
 }
 if (( ${#TARGETS[@]} > 0 )); then
-    confirm 'Autoriser les paquets annoncés et la mise à jour système ?' || { info 'Installation annulée.'; exit 0; }
+    confirm 'Autoriser les paquets annoncés et la mise à jour système ?' || { bilan_annule 'Installation des paquets refusée.'; info 'Installation annulée.'; exit 0; }
     approved=$(printf '%s\n' "$REPOS" "${TARGETS[@]}")
     read_package_plan
     [[ "$approved" == "$(printf '%s\n' "$REPOS" "${TARGETS[@]}")" ]] || fatal 'Le plan Pacman a changé. Relancer.'
     create_snapshot
     pacman -Q | sudo tee "$SNAPSHOT/paquets-avant.txt" >/dev/null
+    bilan_debut
     sudo pacman -Syu --needed -- "${TARGETS[@]}" || fatal 'Transaction Pacman échouée. Consulter /var/log/pacman.log.'
     pacman -Q | sudo tee "$SNAPSHOT/paquets-apres.txt" >/dev/null
+    bilan_action 'Transaction Pacman terminée ; inventaire final enregistré.'
     read_package_plan
     (( ${#TARGETS[@]} == 0 )) || fatal 'Des paquets requis sont encore manquants.'
     status_line "$GREEN" 'Installation vérifiée' 'Tous les paquets requis sont présents.'
@@ -198,6 +207,7 @@ info "Activer au démarrage et démarrer si nécessaire : ${UNITS[*]}"
 info 'Le stockage et le réseau existants seront lus avant toute modification les concernant.'
 warn 'Le démarrage de libvirt peut lancer les ressources et VM déjà configurées pour le démarrage automatique.'
 if ! confirm 'Autoriser la sauvegarde et la configuration libvirt annoncées ?'; then
+    bilan_annule 'Configuration libvirt refusée ; conserver les éventuels paquets déjà installés.'
     info 'Configuration annulée. Les paquets installés restent présents.'
     if [[ -n "$SNAPSHOT" ]]; then info "Inventaire : $SNAPSHOT"; fi
     exit 0
@@ -210,8 +220,10 @@ sudo cp -a -- /etc/libvirt "$SNAPSHOT/libvirt"
 systemctl show "${UNITS[@]}" -p Id -p ActiveState -p UnitFileState |
     sudo tee "$SNAPSHOT/unites-avant.txt" >/dev/null
 if [[ -n "$KVM_MODULE" && ! -c /dev/kvm ]]; then
+    bilan_debut
     sudo modprobe "$KVM_MODULE" || warn 'Chargement KVM impossible. Vérifier l’UEFI et le noyau en cours.'
 fi
+bilan_debut
 sudo systemctl enable --now "${UNITS[@]}"
 virsh_system list --all | sudo tee "$SNAPSHOT/mes-vm.txt" >/dev/null
 
@@ -232,6 +244,7 @@ if grep -Eq "<pool[[:space:]][^>]*type=['\"]dir['\"]" <<< "$pool_xml" &&
     if ! grep -Eq '^Autostart:[[:space:]]+yes$' <<< "$pool_info"; then virsh_system pool-autostart default; fi
     POOL_MANAGED=true
 else
+    bilan_ignore 'Pool default personnalisé ou transitoire conservé.'
     info 'Pool default personnalisé ou transitoire : configuration conservée.'
 fi
 
@@ -261,6 +274,7 @@ XML
         if ! grep -Eq '^Autostart:[[:space:]]+yes$' <<< "$net_info"; then virsh_system net-autostart default; fi
         NET_MANAGED=true
     else
+        bilan_ignore 'Réseau default personnalisé ou transitoire conservé.'
         warn 'Réseau default personnalisé ou transitoire : configuration conservée.'
     fi
 fi
@@ -277,10 +291,13 @@ if confirm "Autoriser cet accès sans mot de passe via $RULE ?"; then
         sudo test -f "$RULE" && ! sudo test -L "$RULE" &&
             sudo cmp -s "$SNAPSHOT/polkit-propose.rules" "$RULE" || fatal "Fichier Polkit différent : $RULE."
     else
+        bilan_debut
         sudo install -m 0644 -- "$SNAPSHOT/polkit-propose.rules" "$RULE"
     fi
+    bilan_action "Accès local Polkit conforme : $RULE."
     ok "Accès local enregistré dans $RULE."
 else
+    bilan_ignore 'Accès Polkit facultatif refusé ; politique existante conservée.'
     info 'Les règles Polkit de la machine déterminent l’authentification dans Virt-Manager.'
 fi
 
@@ -297,6 +314,7 @@ for unit in "${UNITS[@]}"; do
         "$unit" "$boot_color" "${boot_state:-inconnu}" "$RESET" "$active_color" "${active_state:-inconnu}" "$RESET"
     (( active_rc == 0 )) || fatal "Unité non active : $unit."
     (( boot_rc == 0 )) || fatal "Unité non activée au démarrage : $unit."
+    bilan_action "$unit : actif et activé, état final vérifié."
 done
 pool_info=$(virsh_system pool-info default)
 printf '%s\n' "$pool_info"
@@ -304,6 +322,7 @@ if $POOL_MANAGED; then
     grep -Eq '^State:[[:space:]]+running$' <<< "$pool_info" &&
         grep -Eq '^Autostart:[[:space:]]+yes$' <<< "$pool_info" ||
         fatal 'Le pool standard n’est pas actif ou son démarrage automatique n’est pas confirmé.'
+    bilan_action 'Pool default actif et démarrage automatique vérifié.'
     status_line "$GREEN" 'Stockage actif' 'Pool default · démarrage automatique confirmé.'
 fi
 if $NETWORK; then
@@ -313,6 +332,7 @@ if $NETWORK; then
         grep -Eq '^Active:[[:space:]]+yes$' <<< "$net_info" &&
             grep -Eq '^Autostart:[[:space:]]+yes$' <<< "$net_info" ||
             fatal 'Le réseau NAT n’est pas actif ou son démarrage automatique n’est pas confirmé.'
+        bilan_action 'Réseau NAT default actif et démarrage automatique vérifié.'
         status_line "$GREEN" 'NAT actif' 'Réseau default · démarrage automatique confirmé.'
     fi
 fi
@@ -321,5 +341,6 @@ if [[ -c /dev/kvm ]] && virsh_system domcapabilities --virttype kvm >/dev/null; 
 else
     warn 'Capacités KVM non confirmées. Une VM de test reste à démarrer après diagnostic.'
 fi
+bilan_note 'Démarrer une VM de test pour vérifier le disque, KVM et la connectivité de l’invité.'
 status_line "$VIOLET" 'Sauvegarde' "$SNAPSHOT"
 show_command virt-manager --connect "$URI"

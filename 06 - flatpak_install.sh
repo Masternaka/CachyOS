@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Applications personnelles Flathub ; lancer sans sudo dans la session utilisateur.
 set -euo pipefail
+
+# Bilan commun ; conserver le dossier scripts/ à côté de ce fichier.
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/scripts/bilan.sh"
+bilan_init "06 · Applications Flatpak" "$@"
 export LC_ALL=C
 DRY_RUN=false
 SHOW_LIST=false
@@ -65,9 +69,9 @@ info() { printf '  %s\n' "$*"; }
 status_line() { printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3"; }
 ok() { status_line "$GREEN" 'OK' "$*"; }
 warn() { status_line "$YELLOW" 'Attention' "$*"; }
-error() { printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$*" >&2; }
+error() { bilan_erreur "$*"; printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$*" >&2; }
 fatal() { error "$1"; exit "${2:-1}"; }
-step() { printf '\n%b── %s/%s  %s%b\n' "$CYAN" "$1" "$STEPS" "$2" "$RESET"; }
+step() { BILAN_ETAPE="$*"; printf '\n%b── %s/%s  %s%b\n' "$CYAN" "$1" "$STEPS" "$2" "$RESET"; }
 flatpak_user() { flatpak "$@" --user; }
 # Les glyphes de progression de Flatpak nécessitent une locale UTF-8.
 flatpak_progress() { LC_ALL=C.UTF-8 flatpak_user "$@"; }
@@ -165,6 +169,7 @@ on_exit() {
         fi
         if $HOST_CHANGED; then warn 'La transaction Pacman a pu modifier l’hôte. Consulter /var/log/pacman.log.'; fi
     fi
+    bilan_print "$status"
 }
 trap 'on_exit $?' EXIT
 trap 'exit 130' INT
@@ -191,7 +196,7 @@ if [[ -z "$SELECTION" ]]; then
         done
         printf 'Numéros séparés par des virgules [Entrée = tout, q = quitter] : '
         IFS= read -r SELECTION || fatal 'Sélection interrompue.'
-        if [[ "$SELECTION" == q ]]; then info 'Installation annulée.'; exit 0; fi
+        if [[ "$SELECTION" == q ]]; then bilan_annule 'Sélection annulée.'; info 'Installation annulée.'; exit 0; fi
     fi
     SELECTION="${SELECTION:-tout}"
 fi
@@ -352,7 +357,7 @@ if (( ${#HOST_TARGETS[@]} > 0 )); then
 fi
 warn 'L’accord couvre l’ajout éventuel de Flathub, les applications sélectionnées, leurs runtimes et extensions.'
 info 'Les applications déjà présentes pourront être mises à jour. Les questions d’installation recevront leurs réponses par défaut.'
-if ! confirm 'Autoriser toute cette installation ?'; then info 'Installation annulée.'; exit 0; fi
+if ! confirm 'Autoriser toute cette installation ?'; then bilan_annule 'Installation refusée avant application.'; info 'Installation annulée.'; exit 0; fi
 
 APPROVED_HOST=$(printf '%s\n' "${HOST_TARGETS[@]}" "$HOST_REPOS")
 read_host_plan
@@ -362,12 +367,14 @@ if $FLATPAK_PREVIEW; then recheck_flatpak_plan; fi
 if (( ${#HOST_TARGETS[@]} > 0 )); then
     create_snapshot
     pacman -Q > "$SNAPSHOT/paquets-hote-avant.txt"
+    bilan_debut
     HOST_CHANGED=true
     sudo pacman -Syu --needed --noconfirm -- "${HOST_TARGETS[@]}" ||
         fatal 'La transaction Pacman a échoué ou a été annulée.'
     pacman -Q > "$SNAPSHOT/paquets-hote-apres.txt"
     read_host_plan
     (( ${#HOST_MISSING[@]} == 0 )) || fatal "Prérequis encore manquants : ${HOST_MISSING[*]}"
+    bilan_action 'Transaction Pacman terminée ; prérequis natifs vérifiés.'
     ok 'Prérequis natifs vérifiés après la transaction.'
     if $FLATPAK_PREVIEW; then recheck_flatpak_plan; fi
 fi
@@ -401,6 +408,7 @@ flathub, uniquement lorsqu'il n'est plus utilisé et après examen.
 EOF
 status_line "$VIOLET" 'Inventaire' "$SNAPSHOT"
 if ! $HAS_FLATHUB; then
+    bilan_debut
     flatpak_user remote-add --if-not-exists flathub "$FLATHUB_DESCRIPTOR" || fatal 'Ajout de Flathub personnel en échec.'
 fi
 read_local_state
@@ -435,6 +443,7 @@ for ref in ${verified_refs[@]+"${verified_refs[@]}"}; do
     id="${ref#app/}"
     id="${id%%/*}"
     before_commit=''
+    bilan_debut
     if [[ -n "$(origin_for "$ref")" ]]; then
         if ! before_commit=$(flatpak_user info --show-commit "$ref") || [[ -z "$before_commit" ]]; then
             error "Lecture du commit installé impossible : $ref."
@@ -460,18 +469,22 @@ for ref in ${verified_refs[@]+"${verified_refs[@]}"}; do
     fi
     if [[ -z "$before_commit" ]]; then
         status_line "$GREEN" 'Installée' "$id"
+        bilan_action "$id : installation vérifiée."
         installed_count=$((installed_count + 1))
         printf '%s\n' "$ref" >> "$SNAPSHOT/nouvelles-applications.txt"
     elif [[ "$before_commit" != "$after_commit" ]]; then
         status_line "$GREEN" 'Mise à jour' "$id"
+        bilan_action "$id : mise à jour vérifiée."
         updated_count=$((updated_count + 1))
     else
         status_line "$BLUE" 'Inchangée' "$id"
+        bilan_ignore "$id : déjà à jour."
         unchanged_count=$((unchanged_count + 1))
     fi
 done
 if $CLEANUP && (( failed_count == 0 )); then
     if confirm 'Proposer à Flatpak de supprimer les runtimes personnels inutilisés ?'; then
+        bilan_debut
         if ! flatpak_progress uninstall --unused; then
             error 'Nettoyage échoué ou annulé. Examiner les messages Flatpak.'
             failed_count=$((failed_count + 1))
@@ -494,6 +507,7 @@ status_line "$VIOLET" 'Inventaires' "$SNAPSHOT"
 if (( installed_count > 0 )); then
     user_exports="${FLATPAK_USER_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/flatpak}/exports/share"
     if [[ ":${XDG_DATA_DIRS:-}:" != *":$user_exports:"* ]]; then
+        bilan_note 'Fermer puis rouvrir la session graphique si les lanceurs Flatpak manquent dans le menu.'
         warn 'Les lanceurs Flatpak peuvent manquer dans le menu. Fermez puis rouvrez la session graphique pour actualiser XDG_DATA_DIRS.'
         info 'Les applications installées se lancent aussi avec flatpak run IDENTIFIANT.'
     fi

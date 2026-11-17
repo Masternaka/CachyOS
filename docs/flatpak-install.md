@@ -1,5 +1,7 @@
 # Applications Flatpak personnelles
 
+[Accueil](../README.md) · [Utiliser les scripts](utilisation.md) · [Tous les guides](../README.md#choisir-un-script)
+
 Le script `06 - flatpak_install.sh` installe les applications choisies parmi
 les 13 du catalogue Flathub, sur la branche `stable` et pour l’architecture de l’hôte.
 Il se lance **sans sudo**, dans la session du compte concerné. Toutes les
@@ -30,7 +32,7 @@ subordonnés de Podman et les services D-Bus effectifs peuvent demander une
 vérification dans le compte utilisateur. [Portails de Niri](https://github.com/niri-wm/niri/wiki/Important-Software#portals) ·
 [Easy Effects](https://github.com/wwmm/easyeffects) · [Distrobox](https://distrobox.it/)
 
-Distrobox et Podman figurent aussi parmi les 62 paquets du
+Distrobox et Podman figurent aussi parmi les 59 paquets du
 [script 05](package-install.md). Les applications de ce guide proviennent du
 dépôt personnel Flathub.
 

@@ -62,6 +62,8 @@ class ServicesTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
+        (self.root / "scripts").mkdir()
+        (self.root / "scripts/bilan.sh").write_text((SCRIPT.parent / "scripts/bilan.sh").read_text())
         self.bin = self.root / 'bin'
         self.bin.mkdir()
         self.fake = self.root / 'fake'
@@ -133,6 +135,8 @@ class ServicesTests(unittest.TestCase):
         self.assertEqual(len(self.actions()), len(UNITS))
         self.assertIn('objectif non atteint', result.stderr)
         self.assertNotIn('Terminé — toutes', result.stdout)
+        self.assertEqual(result.stderr.count('── Bilan de l’opération'), 1)
+        self.assertIn('Résultat     : Partiellement réussi', result.stderr)
 
     def test_missing_package_only_blocks_its_unit(self):
         self.config['missing_pkg'] = 'bluez'

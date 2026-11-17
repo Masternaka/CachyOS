@@ -1,5 +1,7 @@
 # Diagnostic et validation
 
+[Accueil](../README.md) · [Utiliser les scripts](utilisation.md) · [Tous les guides](../README.md#choisir-un-script)
+
 ## Diagnostic de la machine consultée
 
 ```bash
@@ -42,7 +44,61 @@ Les tests système remplacent les commandes par des faux outils et redirigent le
 fixtures. Les anciens modèles de `config/zsh/` restent des archives avec marqueurs,
 exclus de la validation des sources Zsh actives.
 
-## Résultat local du 13 novembre 2026
+## Vérification documentaire du 17 novembre 2026
+
+La documentation utilise désormais un seul `README.md` à la racine. Les guides
+Stow, Kitty, Fastfetch et les raccourcis sont regroupés dans `docs/`, avec un
+guide d'utilisation des onze scripts. Les anciens modèles Zsh restent conservés
+dans `config/zsh/` ; leur rôle est décrit dans le
+[catalogue des configurations](dotfiles.md#anciens-modèles-zsh).
+
+`python3 -B scripts/verifier_depot.py --statique` réussit : syntaxes
+Bash/Python/Zsh et cinq tests de cohérence documentaire. Le catalogue documenté
+correspond aux 59 paquets actifs, répartis en 14 groupes. Les liens locaux et
+23 liens vers des sections Markdown ont également été examinés.
+
+Cette passe n'exécute pas les tests avec fixtures et ne valide ni installation
+ni configuration sur CachyOS. Aucune application système n'a été lancée.
+
+## Bilans communs du 17 novembre 2026
+
+Les onze scripts utilisent `scripts/bilan.sh`. Ce module affiche le bilan sur
+la sortie d'erreur, sans créer de rapport supplémentaire. Les nettoyages et
+retours arrière des scripts sont exécutés avant le bilan final. L'aide et les
+listes réussies conservent leurs sorties sans ajout. Le vérificateur contrôle
+désormais aussi la syntaxe des modules Bash de `scripts/`.
+
+Les **16 tests de `tests/test_bilan.py` réussissent**. Ils couvrent le succès,
+l'échec précoce, les actions partielles, l'annulation avant/après des actions,
+le signal TERM, les modes de simulation, le mode silencieux, le retour arrière,
+les listes longues et l'absence de doublon ou de pollution de la sortie standard.
+Ils vérifient aussi le bilan d'une erreur d'arguments sur les onze scripts.
+Les fixtures existantes copient le module commun dans leur dépôt temporaire.
+Les tests du pare-feu, de Pacman et de systemd vérifient également le bilan lors
+d'échecs simulés, notamment après restauration.
+
+La suite complète examine **161 tests : 151 réussissent, 9 échouent et 1 est
+ignoré**. Les neuf échecs sont reproduits sans les nouveaux bilans, dans des
+copies des scripts de référence avec la sélection de paquets présente avant
+cette modification :
+
+- Sept scénarios Flatpak sont bloqués par l'expansion d'un tableau `HOST_TARGETS`
+  vide avec `set -u` sous le Bash 3.2 de macOS. Cela ne permet pas de conclure
+  sur leur comportement avec Bash sous CachyOS.
+- Deux tests de paquets natifs attendent un ancien catalogue ou un ancien nombre
+  de nouvelles installations, incompatibles avec la sélection actuelle de
+  59 paquets. Cette sélection personnelle n'a pas été changée pour satisfaire
+  les tests.
+- Le test utilisant le vrai GNU Stow est ignoré car l'outil est absent.
+
+Ces écarts préexistants restent à traiter séparément ; la suite complète n'est
+donc pas annoncée comme entièrement réussie. Les contrôles statiques passent.
+Aucun outil n'a été installé, aucun service réel n'a été modifié et aucune
+installation de paquets ou configuration personnelle n'a été appliquée. Les
+tests et la comparaison avec les versions de référence utilisent uniquement
+des dossiers temporaires isolés. La validation réelle sous CachyOS reste à faire.
+
+## Résultat historique du 13 novembre 2026
 
 La commande `python3 -B scripts/verifier_depot.py` s'est terminée avec succès :
 syntaxes Bash/Python/Zsh, cohérence documentaire et 141 tests examinés, dont

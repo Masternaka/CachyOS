@@ -1,5 +1,7 @@
 # Activer les services et timers systemd
 
+[Accueil](../README.md) · [Utiliser les scripts](utilisation.md) · [Tous les guides](../README.md#choisir-un-script)
+
 Le script `01 - systemd_services.sh` active durablement et démarre
 `bluetooth.service`, `sshd.service`, `fstrim.timer` et `paccache.timer`. Il nécessite
 CachyOS/Arch, un gestionnaire systemd accessible et les paquets `bluez`, `openssh`,

@@ -1,11 +1,13 @@
 # Dotfiles CachyOS pour GNU Stow
 
-Ce dossier prépare une installation future par liens symboliques. Aucun paquet
+[Accueil](../README.md) · [Utiliser les scripts](utilisation.md) · [Tous les guides](../README.md#choisir-un-script)
+
+Le dossier `Dotfiles/` prépare une installation future par liens symboliques. Aucun paquet
 n'est installé et aucun lien n'est créé dans le dossier personnel par sa simple
 présence dans le dépôt. Les 17 sous-dossiers ci-dessous sont des paquets Stow
 autonomes. Le script `04 - install_zsh.sh` sait déployer les 15 modules de Zsh à
 Foot par copies ou avec Stow, après un plan et des confirmations : voir le
-[guide](../docs/zsh.md). Ghostty et Fastfetch se déploient séparément.
+[guide](zsh.md). Ghostty et Fastfetch se déploient séparément.
 Le seizième module de l'installateur, `duf`, installe seulement l'outil : aucun
 fichier de configuration ni paquet Stow n'est nécessaire.
 Son contenu reproduit les chemins relatifs au dossier personnel cible.
@@ -25,10 +27,10 @@ Dotfiles/
 ├── fd/        .config/fd/ignore
 ├── delta/     .config/git/config
 ├── lazygit/   .config/lazygit/config.yml
-├── kitty/     .config/kitty/kitty.conf, thèmes, accès rapide et README.md
+├── kitty/     .config/kitty/kitty.conf, thèmes et accès rapide
 ├── foot/      .config/foot/foot.ini
 ├── ghostty/   .config/ghostty/config
-└── fastfetch/ .config/fastfetch/config.jsonc et README.md
+└── fastfetch/ .config/fastfetch/config.jsonc
 ```
 
 ## Ce qui est préparé
@@ -36,7 +38,7 @@ Dotfiles/
 | Paquet Stow | Réglages et activation |
 |---|---|
 | `zsh` | Suggestions, complétions, historique ↑/↓, alias séparés, FZF, Zoxide, Yazi `y` et Starship lorsque les outils sont présents. Aucun gestionnaire de plugins. |
-| `starship` | Invite Catppuccin Powerline avec dossier, Git, horloge et durée des commandes. Mocha par défaut, trois autres variantes dans le [script 04](../docs/zsh.md). |
+| `starship` | Invite Catppuccin Powerline avec dossier, Git, horloge et durée des commandes. Mocha par défaut, trois autres variantes dans le [script 04](zsh.md). |
 | `yazi` | Tri naturel, dossiers en premier, trois panneaux, touches `g h`, `g c` et `g /`, couleurs Mocha intégrées sans flavor externe. |
 | `btop` | CPU/RAM/réseau/processus, Celsius, rafraîchissement de 1,5 s et arrière-plan du terminal. Thème intégré Default, sans téléchargement. |
 | `tealdeer` | Exemples lisibles et pager ; mise à jour automatique du cache désactivée. `tldr --update` reste une action séparée à autoriser. |
@@ -48,10 +50,10 @@ Dotfiles/
 | `fd` | Exclusions globales `.DS_Store` et `__pycache__`. Utiliser `fd --no-ignore` pour les contourner. |
 | `delta` | Pager Git avec numéros et navigation. Nécessite `git-delta` installé. Aucune identité, URL distante ou authentification n'est fournie. |
 | `lazygit` | Couleurs Mocha et icônes Nerd Font 3 ; fetch et contrôles de mise à jour automatiques désactivés. |
-| `kitty` | JetBrainsMono Nerd Font avec variantes automatiques ; source à 12 points et thème Catppuccin Macchiato, taille existante préservée par le mode copie. [Guide Kitty](kitty/.config/kitty/README.md). |
+| `kitty` | JetBrainsMono Nerd Font avec variantes automatiques ; source à 12 points et thème Catppuccin Macchiato, taille existante préservée par le mode copie. [Guide Kitty](kitty.md). |
 | `foot` | JetBrainsMono Nerd Font, 11 points pour une configuration neuve ; taille existante préservée par le mode copie. |
 | `ghostty` | Configuration Linux/Niri : thèmes Catppuccin, JetBrainsMono Nerd Font 14 points, transparence et raccourcis Ctrl+Maj. Déploiement Stow séparé. |
-| `fastfetch` | Informations système, environnement, matériel et audio, sections colorées et icônes Nerd Font. Déploiement Stow séparé ; [guide du paquet](fastfetch/.config/fastfetch/README.md). |
+| `fastfetch` | Informations système, environnement, matériel et audio, sections colorées et icônes Nerd Font. Déploiement Stow séparé ; [guide du paquet](fastfetch.md). |
 
 Les fichiers `fzf/config.zsh`, `zoxide/config.zsh` et `eza/config.zsh` sont des
 fragments d'environnement chargés par **notre paquet Zsh** ; ces outils ne les
@@ -121,8 +123,8 @@ stow --dir="$PWD/Dotfiles" --target="$HOME" --no-folding --simulate --verbose \
 
 Après examen, sauvegarde des éventuels conflits et autorisation, retirer
 `--simulate` pour appliquer ce plan. Comme pour les autres paquets Stow manuels,
-aucune sauvegarde ou restauration automatique n'est créée. Le paquet Fastfetch
-lie également son README dans `~/.config/fastfetch/README.md`.
+aucune sauvegarde ou restauration automatique n'est créée. La documentation reste
+dans `docs/` et ne fait plus partie des fichiers à déployer.
 
 Ghostty vise Linux/Wayland avec Niri, sans réglages macOS. Niri contrôle le
 placement et la taille des fenêtres en mosaïque ; les dimensions du fichier sont
@@ -184,7 +186,7 @@ modèles `config/zsh` sont conservés, mais ne sont plus utilisés par l'install
 
 Les commandes Stow manuelles de ce guide n'installent aucun logiciel et ne créent
 pas de journal de restauration. Pour une session automatisée avec sauvegardes et
-retour arrière, utiliser le script et le [guide associé](../docs/zsh.md).
+retour arrière, utiliser le script et le [guide associé](zsh.md).
 
 ## Retirer les liens
 
@@ -217,7 +219,7 @@ Sur l'hôte de préparation, Stow et les applications de personnalisation concer
 ne sont pas disponibles ; Zsh et Git sont utilisés pour les contrôles décrits.
 Le catalogue attendu est maintenant vérifié par les noms explicites des 17 paquets.
 Ghostty et Fastfetch nécessitent aussi une validation native distincte. Voir le
-[guide de validation](../docs/validation.md) pour les outils absents et les limites.
+[guide de validation](validation.md) pour les outils absents et les limites.
 Le rendu et le comportement natif sous CachyOS restent à valider.
 Aucun déploiement dans le dossier personnel n'a été effectué.
 
@@ -226,3 +228,17 @@ Références : [GNU Stow](https://www.gnu.org/software/stow/manual/stow.html),
 [Tealdeer](https://github.com/tealdeer-rs/tealdeer/blob/main/docs/src/config.md),
 [Lazygit](https://github.com/jesseduffield/lazygit/blob/master/docs/Config.md),
 [Delta](https://dandavison.github.io/delta/configuration.html).
+
+## Anciens modèles Zsh
+
+Les fichiers de `config/zsh/` sont conservés comme archives et ne sont plus utilisés par
+`04 - install_zsh.sh`. Les marqueurs comme `@USE_THEME@` appartiennent à l'ancien
+mécanisme de génération ; ne pas charger ces modèles directement dans le shell.
+
+Les sources actuelles à modifier sont :
+
+- [Dotfiles/zsh/.zshrc](../Dotfiles/zsh/.zshrc) pour l'initialisation ;
+- [les alias](../Dotfiles/zsh/.config/cachyos-zsh/aliases.zsh) ;
+- les autres paquets du [catalogue Dotfiles](dotfiles.md).
+
+Aucun ancien commentaire ou exemple n'a été supprimé.
