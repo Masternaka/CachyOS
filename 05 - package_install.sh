@@ -21,7 +21,7 @@ TRANSACTION_STARTED=false
 
 # Utilitaires
 GROUP_UTILITAIRES=(
-      catfish
+      #catfish
       flameshot
       gnome-disk-utility
       gparted
@@ -30,8 +30,8 @@ GROUP_UTILITAIRES=(
       transmission-qt
       #lshw
       #fwupd
-      timeshift
-      7zip
+      #timeshift
+      #7zip
       stow
 
 )
@@ -57,8 +57,10 @@ GROUP_SECURITE=(
       bitwarden
       proton-pass
       #proton-vpn-gtk-app
-      firewalld
-      firewall-config
+      #firewalld
+      #firewall-config
+      ufw
+      gufw
 
 )
 
@@ -102,9 +104,6 @@ GROUP_BUREAUTIQUE=(
 
 # Virtualisation
 GROUP_VIRTUALISATION=(
-      qemu-full
-      swtpm
-      virt-manager
       distrobox
       podman
 
@@ -113,20 +112,17 @@ GROUP_VIRTUALISATION=(
 # Terminal
 GROUP_TERMINAUX=(
       kitty
-      foot
-      ghostty
+      #foot
+      #ghostty
 
 )
 
 # Utilitaires terminal
 GROUP_TERMINAL=(
-      btop
       fastfetch
-      tealdeer
       git
       curl
       wget
-      yazi
       starship
 
 )
@@ -139,7 +135,6 @@ GROUP_DEVELOPPEMENT=(
       meld
       zed
       #Helix
-      #lazygit
       #lazydocker
       #neovim
 
@@ -160,13 +155,13 @@ GROUP_IA=(
 
 # KDE Plasma
 GROUP_KDE=(
-      merkuro
-      dolphin-plugins
-      isoimagewriter
-      yakuake
-      krusader
-      systemdgenie
-      print-manager
+      #merkuro
+      #dolphin-plugins
+      #isoimagewriter
+      #yakuake
+      #krusader
+      #systemdgenie
+      #print-manager
 
 )
 
