@@ -16,16 +16,7 @@ CONFIG_DIR=/etc/firewalld
 UFW_DIR=/etc/ufw
 REPORT=()
 
-GREEN='' YELLOW='' CYAN='' BLUE='' STATE_RED='' VIOLET='' BOLD='' RESET='' RED='' ERROR_RESET=''
-if [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
-  if [[ -t 1 ]]; then
-    GREEN='\033[1;32m' YELLOW='\033[1;33m' CYAN='\033[1;36m' BLUE='\033[1;94m'
-    STATE_RED='\033[1;31m' VIOLET='\033[1;95m' BOLD='\033[1m' RESET='\033[0m'
-  fi
-  if [[ -t 2 ]]; then
-    RED='\033[1;31m' ERROR_RESET='\033[0m'
-  fi
-fi
+bilan_couleurs 1
 
 info()  { printf '  %b%-12s%b %s\n' "$BOLD" 'Info' "$RESET" "$*"; }
 ok()    { printf '  %b[OK]%b %s\n' "$GREEN" "$RESET" "$*"; }
@@ -35,9 +26,6 @@ fatal() { error "$*"; exit 1; }
 dry()   { printf '  %b[Simulation]%b %s\n' "$CYAN" "$RESET" "$*"; }
 step()  { BILAN_ETAPE="$*"; printf '\n%b── %s/4  %s%b\n' "$CYAN" "$1" "$2" "$RESET"; }
 
-print_report() {
-    bilan_print "$1"
-}
 
 usage() {
   cat <<'HELP'
@@ -184,7 +172,6 @@ perform_action() {
   if "$@"; then
     bilan_action "Commande terminée : ${command% }"
     ok "Commande réussie : ${command% }"
-    REPORT+=("Commande réussie : ${command% }")
   else
     REPORT+=("Échec : ${command% }. Une modification partielle est possible.")
     fatal "La commande a échoué : ${command% }"
@@ -304,7 +291,6 @@ run_interactive() {
   fi
   if [[ -z "$target" && -z "$gui" ]]; then
     bilan_ignore 'Aucune modification demandée.'
-    REPORT+=('Aucune modification demandée.')
   elif $DRY_RUN; then
     REPORT+=('Actions prévues affichées à l’étape 3. Aucune modification appliquée.')
   else
@@ -352,7 +338,7 @@ run_interactive() {
   while IFS= read -r answer; do REPORT+=("$answer"); done <<< "$output"
 }
 
-trap 'print_report "$?"' EXIT
+trap 'bilan_print "$?"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 printf '%bCachyOS · Pare-feu%b\n' "$BOLD" "$RESET"
@@ -472,7 +458,7 @@ rollback_on_exit() {
       REPORT+=("Retour arrière incomplet. Examiner $UNDO depuis un accès local.")
     fi
   fi
-  print_report "$status"
+  bilan_print "$status"
   exit "$status"
 }
 trap rollback_on_exit EXIT

@@ -149,20 +149,25 @@ class PackageInstallTests(unittest.TestCase):
         self.assertEqual(self.run_script('--help', original=True).returncode, 0)
         self.assertEqual(self.calls(), [])
 
-    def test_exact_list_includes_tealdeer(self):
-        expected = """catfish flameshot gnome-disk-utility gparted qbittorrent transmission-qt
-        lshw fwupd timeshift 7zip stow ttf-jetbrains-mono-nerd ttf-meslo-nerd
-        ttf-firacode-nerd firefox-i18n-fr thunderbird-i18n-fr bitwarden proton-pass
-        firewalld firewall-config firefox thunderbird brave-origin-bin strawberry mpv
-        vesktop-bin libreoffice-fresh libreoffice-fresh-fr obsidian qemu-full swtpm
-        virt-manager distrobox podman kitty foot ghostty btop fastfetch tealdeer git
-        curl wget yazi starship micro code github-desktop meld zed openai-codex
-        claude-desktop claude-code opencode opencode-desktop merkuro dolphin-plugins
-        isoimagewriter yakuake krusader systemdgenie print-manager""".split()
+    def test_exact_active_catalogue(self):
+        expected = """flameshot gnome-disk-utility gparted qbittorrent transmission-qt stow
+        ttf-jetbrains-mono-nerd ttf-meslo-nerd ttf-firacode-nerd firefox-i18n-fr
+        thunderbird-i18n-fr bitwarden proton-pass ufw gufw firefox thunderbird
+        brave-origin-bin floorp-bin strawberry mpv vesktop-bin libreoffice-fresh
+        libreoffice-fresh-fr obsidian distrobox podman kitty fastfetch git curl
+        wget starship micro code github-desktop meld zed openai-codex
+        claude-desktop claude-code""".split()
         self.assertEqual(self.packages, expected)
         self.assertEqual(len(set(self.packages)), len(self.packages))
-        self.assertIn('tealdeer', self.packages)
-        self.assertNotIn('tldr', self.packages)
+
+    def test_empty_group_lists_nothing_and_does_not_start_a_transaction(self):
+        result = self.run_script('--groups', 'kde', '--list', original=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, '')
+        result = self.run_script('--groups', 'kde')
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn('Aucun paquet actif', result.stderr)
+        self.assertEqual(self.calls(), [])
 
     def test_groups_are_explicit_and_default_list_is_their_union(self):
         groups = self.run_script('--list-groups', original=True).stdout.splitlines()
@@ -177,9 +182,8 @@ class PackageInstallTests(unittest.TestCase):
             combined.extend(result.stdout.splitlines())
         self.assertEqual(combined, self.packages)
         result = self.run_script('--groups', 'virtualisation,terminal', '--list', original=True)
-        self.assertEqual(result.stdout.splitlines(), ['qemu-full', 'swtpm', 'virt-manager',
-                         'distrobox', 'podman', 'btop', 'fastfetch', 'tealdeer', 'git',
-                         'curl', 'wget', 'yazi', 'starship'])
+        self.assertEqual(result.stdout.splitlines(), ['distrobox', 'podman', 'fastfetch', 'git',
+                         'curl', 'wget', 'starship'])
         self.assertEqual(self.calls(), [])
 
     def test_group_selection_limits_transaction_targets(self):
@@ -187,7 +191,7 @@ class PackageInstallTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         transactions = [c for c in self.calls() if c[:2] == ['pacman', '-Syu']]
         self.assertEqual(transactions[0][3:], ['cachyos-extra-v3/' + p for p in
-                         ['qemu-full', 'swtpm', 'virt-manager', 'distrobox', 'podman']])
+                         ['distrobox', 'podman']])
 
     def test_invalid_groups_fail_without_system_calls(self):
         for args in [('--groups',), ('--groups', ''), ('--groups', 'kde,'),
@@ -218,7 +222,7 @@ class PackageInstallTests(unittest.TestCase):
     def test_dry_run_has_no_writes_or_privilege_escalation(self):
         result = self.run_script('--dry-run')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('cachyos-extra-v3/tealdeer', result.stdout)
+        self.assertIn('cachyos-extra-v3/git', result.stdout)
         self.assert_no_mutation()
 
     def test_third_party_or_testing_repository_is_rejected(self):
@@ -292,7 +296,8 @@ class PackageInstallTests(unittest.TestCase):
         self.assertEqual(len(transactions), 1)
         self.assertEqual(transactions[0][2], '--needed')
         self.assertEqual(transactions[0][3:], ['cachyos-extra-v3/' + p for p in self.packages])
-        self.assertIn('61 nouvellement installés', result.stdout)
+        # Git est le seul paquet déjà installé dans cette fixture.
+        self.assertIn(f'{len(self.packages) - 1} nouvellement installés', result.stdout)
         snapshot, = self.root.glob('snapshot-*')
         self.assertEqual(snapshot.stat().st_mode & 0o777, 0o700)
         self.assertTrue((snapshot / 'paquets-apres.txt').exists())
@@ -308,10 +313,10 @@ class PackageInstallTests(unittest.TestCase):
         self.assertTrue((snapshot / 'paquets-apres.txt').exists())
 
     def test_missing_package_after_transaction_is_not_success(self):
-        self.config['absent_after'] = 'ghostty'
+        self.config['absent_after'] = 'kitty'
         result = self.run_script(terminal=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('ghostty', result.stdout)
+        self.assertIn('kitty', result.stdout)
         self.assertNotIn('Transaction terminée', result.stdout)
 
 

@@ -18,13 +18,10 @@ LABELS=('Backup Medias' 'Disque Samsung' 'Medias' 'SSD')
 FSTAB=/etc/fstab
 BOOT_MOUNT_OPTIONS=defaults,nofail
 
-CYAN='' GREEN='' YELLOW='' RED='' RESET=''
-if [[ -t 1 && -t 2 && -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
-    CYAN='\033[1;36m' GREEN='\033[1;32m' YELLOW='\033[1;33m' RED='\033[1;31m' RESET='\033[0m'
-fi
+bilan_couleurs 1
 step() { BILAN_ETAPE="$*"; printf '\n%b── %s%b\n' "$CYAN" "$1" "$RESET"; }
 status() { printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3"; }
-fatal() { bilan_erreur "$*"; status "$RED" 'Échec' "$1" >&2; exit 1; }
+fatal() { bilan_erreur "$*"; printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$1" >&2; exit 1; }
 usage() {
     cat <<'HELP'
 Usage : bash "10 - disk_setup.sh" [--dry-run]

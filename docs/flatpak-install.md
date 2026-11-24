@@ -32,7 +32,7 @@ subordonnés de Podman et les services D-Bus effectifs peuvent demander une
 vérification dans le compte utilisateur. [Portails de Niri](https://github.com/niri-wm/niri/wiki/Important-Software#portals) ·
 [Easy Effects](https://github.com/wwmm/easyeffects) · [Distrobox](https://distrobox.it/)
 
-Distrobox et Podman figurent aussi parmi les 59 paquets du
+Distrobox et Podman figurent aussi parmi les 41 paquets du
 [script 05](package-install.md). Les applications de ce guide proviennent du
 dépôt personnel Flathub.
 

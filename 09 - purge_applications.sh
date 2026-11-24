@@ -26,14 +26,7 @@ FLATPAK_CATALOGUE=(
     'org.kde.haruna'
 )
 
-CYAN='' GREEN='' YELLOW='' BLUE='' VIOLET='' RED='' RESET='' ERROR_RESET=''
-if [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
-    if [[ -t 1 ]]; then
-        CYAN='\033[1;36m' GREEN='\033[1;32m' YELLOW='\033[1;33m' BLUE='\033[1;94m'
-        VIOLET='\033[1;95m' RESET='\033[0m'
-    fi
-    if [[ -t 2 ]]; then RED='\033[1;31m' ERROR_RESET='\033[0m'; fi
-fi
+bilan_couleurs 1
 step() { BILAN_ETAPE="$*"; printf '\n%b── %s%b\n' "$CYAN" "$1" "$RESET"; }
 info() { printf '  %s\n' "$*"; }
 status_line() { printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3"; }
@@ -378,7 +371,7 @@ read_plan
 on_exit() {
     local status=$1
     if (( status != 0 )) && [[ -n "$SNAPSHOT" ]]; then
-        warn "Purge incomplète. Consulter le rapport et les sauvegardes : $SNAPSHOT"
+        warn "Purge incomplète. Consulter les messages ci-dessus et les sauvegardes : $SNAPSHOT"
     fi
     bilan_print "$status"
 }
@@ -463,4 +456,4 @@ for index in "${!CONFIG_TARGETS[@]}"; do
     status_line "$VIOLET" 'Configuration sauvegardée' "$path"
 done
 ok "${#NATIVE_TARGETS[@]} paquet(s) Pacman et ${#FLATPAK_TARGETS[@]} application(s) Flatpak retirés."
-status_line "$VIOLET" 'Rapport et sauvegardes' "$SNAPSHOT"
+status_line "$VIOLET" 'Sauvegardes' "$SNAPSHOT"

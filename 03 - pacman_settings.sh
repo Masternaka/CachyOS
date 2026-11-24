@@ -8,7 +8,6 @@ bilan_init "03 · Réglages Pacman" "$@"
 
 PACMAN_CONF="/etc/pacman.conf"
 BACKUP_DIR="/etc/pacman.conf.backups"
-LOG_FILE="${ARCH_CUSTOM_LOGFILE:-/var/log/pacman_parallel_downloads.log}"
 MODE=''
 VALUE=''
 RESTORE_FILE=''
@@ -48,11 +47,7 @@ HELP
 }
 
 # L'affichage va sur stderr pour réserver stdout à l'aperçu de pacman.conf.
-GREEN='' YELLOW='' RED='' CYAN='' BLUE='' VIOLET='' BOLD='' RESET=''
-if [[ -t 2 && -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
-    GREEN='\033[1;32m' YELLOW='\033[1;33m' RED='\033[1;31m'
-    CYAN='\033[1;36m' BLUE='\033[1;94m' VIOLET='\033[1;95m' BOLD='\033[1m' RESET='\033[0m'
-fi
+bilan_couleurs 2
 
 status_line() {
     if ! $SILENT_MODE; then printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3" >&2; fi
@@ -66,23 +61,6 @@ step() { BILAN_ETAPE="$*";
 }
 error() { bilan_erreur "$*"; printf '  %b[Échec]%b %s\n' "$RED" "$RESET" "$*" >&2; }
 fatal() { error "$1"; exit "${2:-1}"; }
-
-# Fonction de journalisation : jamais sur stdout, jamais d'écriture en dry-run.
-# Un défaut du journal est signalé sans interrompre une transaction déjà validée.
-log_message() {
-    local message
-    message="$(date '+%Y-%m-%d %H:%M:%S') : $3"
-    status_line "$1" "$2" "$3"
-    if ! $DRY_RUN; then
-        if [[ -L "$LOG_FILE" || ( -e "$LOG_FILE" && ! -f "$LOG_FILE" ) || "$LOG_FILE" -ef "$PACMAN_CONF" ]]; then
-            error "Journal inaccessible ou destination refusée : $LOG_FILE. $3"
-            return 0
-        fi
-        if ! printf '%s\n' "$message" >> "$LOG_FILE"; then
-            error "Journal inaccessible : $LOG_FILE. $1"
-        fi
-    fi
-}
 
 select_mode() {
     [[ -z "$MODE" ]] || fatal 'Choisissez un seul mode : --value, --auto ou --restore.' 2
@@ -366,7 +344,7 @@ touch -- "$BACKUP_FILE"
 LATEST_CANDIDATE=$(mktemp "$BACKUP_DIR/.latest.XXXXXXXX")
 printf '%s\n' "${BACKUP_FILE##*/}" > "$LATEST_CANDIDATE"
 mv -f -- "$LATEST_CANDIDATE" "$BACKUP_DIR/.latest"
-log_message "$VIOLET" 'Sauvegarde' "Sauvegarde avant modification : $BACKUP_FILE"
+status_line "$VIOLET" 'Sauvegarde' "Sauvegarde avant modification : $BACKUP_FILE"
 # Vérifier que personne n'a remplacé ou modifié la configuration entre-temps.
 [[ ! -L "$PACMAN_CONF" ]] && cmp -s -- "$PACMAN_CONF" "$SNAPSHOT" \
     || fatal 'Configuration modifiée pendant la préparation ; application annulée.'
@@ -379,5 +357,5 @@ validate_pacman_syntax "$PACMAN_CONF" || exit 1
 COMMIT_PENDING=false
 bilan_action "Configuration validée : ParallelDownloads effectif = $EFFECTIVE_VALUE."
 if [[ "$MODE" == restore ]]; then result_label='Restauré'; else result_label='Appliqué'; fi
-log_message "$GREEN" "$result_label" "Modification validée. ParallelDownloads effectif : $EFFECTIVE_VALUE"
+status_line "$GREEN" "$result_label" "Modification validée. ParallelDownloads effectif : $EFFECTIVE_VALUE"
 status_line "$VIOLET" 'Retour arrière' "sudo bash \"$0\" --restore \"$BACKUP_FILE\""

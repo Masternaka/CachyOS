@@ -257,7 +257,8 @@ class FlatpakTests(unittest.TestCase):
 
     def test_missing_ref_is_reported_and_other_applications_install(self):
         self.config['missing'] = self.refs[2]
-        self.assertNotEqual(self.run_script(terminal=True).returncode, 0)
+        result = self.run_script(terminal=True)
+        self.assertNotEqual(result.returncode, 0)
         self.assertEqual(sum(c[1] == 'install' for c in self.operations()), 12)
         self.assertFalse(any(self.refs[2] in c for c in self.operations()))
         self.assertIn('1 erreurs', result.stdout)

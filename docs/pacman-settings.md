@@ -62,9 +62,10 @@ intercepté ; les sauvegardes restent disponibles. Le verrou protège les exécu
 de ce script, et une comparaison détecte les changements externes avant application.
 Éviter les autres modifications de configuration pendant son exécution.
 
-Le journal reste configurable avec `ARCH_CUSTOM_LOGFILE`. Un échec de journalisation
-est signalé sans annuler une configuration validée. En mode simulation, aucun
-journal, verrou, fichier temporaire ou sauvegarde n'est créé. L'aperçu ne valide pas
+Le résultat et le retour arrière sont affichés uniquement dans le terminal ;
+aucun journal supplémentaire n’est créé par ce script. Les sauvegardes de
+configuration restent conservées. En mode simulation, aucun verrou, fichier
+temporaire ou sauvegarde n’est créé. L'aperçu ne valide pas
 la configuration candidate : cette vérification est faite lors de l'application.
 
 Les tests de `tests/test_pacman_settings.py` utilisent un faux `pacman-conf` et des

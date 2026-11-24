@@ -5,7 +5,6 @@ preview n'écrit rien. deploy exige le jeton du plan approuvé. Les sources rest
 intactes. Le journal et une copie de ce moteur permettent une restauration future.
 """
 import argparse
-import contextlib
 import fcntl
 import hashlib
 import importlib

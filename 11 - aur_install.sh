@@ -111,6 +111,12 @@ case "$MODE" in
   *) fatal "Option inconnue : $MODE ; voir --help." ;;
 esac
 
+printf 'CachyOS · Paquets AUR\n'
+if [[ "$MODE" == --dry-run ]]; then
+  printf '  [Simulation] Lancer sans sudo. Aucun sudo nécessaire et aucune modification appliquée.\n'
+else
+  printf '  [Privilèges] Lancer sans sudo. Paru/Pacman utilisera sudo après confirmation pour installer les paquets et leurs dépendances.\n'
+fi
 printf 'Paquets AUR prévus :\n'
 printf '  %s\n' "${PACKAGES[@]}"
 check_target

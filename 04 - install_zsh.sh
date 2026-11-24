@@ -11,7 +11,6 @@ bilan_init "04 · Zsh et terminal" "$@"
 # =============================================================================
 DRY_RUN=false
 INTERACTIVE=false
-CHECK_SCRIPTS=false
 USE_THEME=true
 STARSHIP_PALETTE=mocha
 PALETTE_GIVEN=false
@@ -31,13 +30,8 @@ DEPLOY_ENGINE="$SCRIPT_DIR/scripts/zsh_deploy.py"
 ALL_MODULES=(zsh starship yazi btop tealdeer bat fzf zoxide eza ripgrep fd delta lazygit kitty foot duf)
 REPORT=()
 SESSION=''
-PHASE=''
 
-GREEN='' YELLOW='' RED='' CYAN='' BLUE='' VIOLET='' BOLD='' RESET=''
-if [[ -t 2 && -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
-    GREEN='\033[1;32m' YELLOW='\033[1;33m' RED='\033[1;31m'
-    CYAN='\033[1;36m' BLUE='\033[1;94m' VIOLET='\033[1;95m' BOLD='\033[1m' RESET='\033[0m'
-fi
+bilan_couleurs 2
 
 status_line() { printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3" >&2; }
 info() { status_line "$BOLD" 'Info' "$*"; }
@@ -47,11 +41,7 @@ dry() { status_line "$CYAN" 'Simulation' "$*"; }
 error() { bilan_erreur "$*"; status_line "$RED" 'Échec' "$*"; }
 fatal() { error "$1"; exit "${2:-1}"; }
 step() { BILAN_ETAPE="$*";
-    PHASE="$2"
     printf '\n%b── %s/6  %s%b\n' "$CYAN" "$1" "$2" "$RESET" >&2
-}
-print_report() {
-    bilan_print "$1"
 }
 confirm() {
     local reply=''
@@ -64,27 +54,8 @@ read_choice() {
     IFS= read -r CHOICE || fatal 'Saisie interrompue avant application.'
     if [[ "$CHOICE" == q || "$CHOICE" == Q ]]; then
         bilan_annule 'Annulé depuis le menu, avant application.'
-        REPORT+=('Annulé depuis le menu. Aucune modification appliquée.')
         exit 0
     fi
-}
-check_repo_scripts() {
-    local script name invalid=0
-    printf '\n%bScripts Bash du dépôt%b\n' "$CYAN" "$RESET" >&2
-    for script in "$SCRIPT_DIR"/*.sh; do
-        [[ -f "$script" && ! -L "$script" ]] || continue
-        name="${script##*/}"
-        if ! bash -n -- "$script"; then
-            error "$name · syntaxe Bash invalide"
-            invalid=1
-        elif [[ ! -x "$script" ]]; then
-            error "$name · sans permission d’exécution directe (syntaxe Bash valide)"
-            invalid=1
-        else
-            ok "$name · exécutable, syntaxe Bash valide"
-        fi
-    done
-    return "$invalid"
 }
 show_help() {
     cat <<'HELP'
@@ -98,7 +69,6 @@ Depuis Fish, lancer avec bash comme dans les exemples. Fish peut rester
 le shell de connexion.
 
   --interactive        Ouvre le menu de sélection (aussi sans argument dans un terminal)
-  --check-scripts      Vérifie les permissions et la syntaxe Bash des scripts du dépôt
   --dry-run, -n        Plan sans écriture, téléchargement ou installation
   --mode copy|stow     Copies (défaut) ou liens GNU Stow
   --only LISTE         Modules séparés par virgules ; défaut : les 16 modules
@@ -126,7 +96,6 @@ if (( $# == 0 )) && [[ -t 0 ]]; then INTERACTIVE=true; fi
 while (( $# > 0 )); do
     case "$1" in
         --interactive) INTERACTIVE=true; shift ;;
-        --check-scripts) CHECK_SCRIPTS=true; shift ;;
         --dry-run|-n) DRY_RUN=true; shift ;;
         --no-theme) USE_THEME=false; shift ;;
         --replace-commands) REPLACE_COMMANDS=true; shift ;;
@@ -144,10 +113,6 @@ while (( $# > 0 )); do
         *) fatal "Argument inconnu : $1" 2 ;;
     esac
 done
-if $CHECK_SCRIPTS; then
-    check_repo_scripts
-    exit 0
-fi
 [[ "$MODE" == copy || "$MODE" == stow ]] || fatal 'Mode attendu : copy ou stow.' 2
 case "$STARSHIP_PALETTE" in
     mocha|macchiato|frappe|latte) ;;
@@ -157,7 +122,7 @@ if $PALETTE_GIVEN && { ! $USE_THEME || [[ -n "$RESTORE" ]]; }; then
     fatal '--palette s’utilise pour déployer Starship.' 2
 fi
 if [[ -n "$RESTORE" ]] && $INTERACTIVE; then fatal '--restore ouvre sa propre confirmation.' 2; fi
-trap 'print_report "$?"' EXIT
+trap 'bilan_print "$?"' EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
@@ -175,7 +140,6 @@ command -v python3 >/dev/null 2>&1 || fatal 'Python 3 est requis pour préparer 
 [[ -r "$DEPLOY_ENGINE" ]] || fatal "Moteur introuvable : $DEPLOY_ENGINE"
 if [[ -n "$RESTORE" ]]; then
     $DRY_RUN && fatal 'Pour restaurer, examiner le journal de la session puis utiliser --restore sans --dry-run.' 2
-    PHASE='Restaurer la session'
     info "Session à restaurer : $RESTORE"
     python3 -B "$DEPLOY_ENGINE" restore "$RESTORE"
     REPORT+=("Restauration terminée : $RESTORE")
@@ -223,7 +187,6 @@ for shell_name in fish zsh; do
 done
 
 step 2 'Choisir les modules et préparer le plan'
-check_repo_scripts || warn 'Les fichiers signalés restent inchangés. Un script lisible et syntaxiquement valide peut être lancé avec bash.'
 if $INTERACTIVE; then
     info 'Entrée garde le choix par défaut. Tapez q pour quitter.'
     if ! $MODE_GIVEN; then
@@ -371,7 +334,6 @@ if (( ${#MISSING[@]} > 0 )); then
     for pkg in "${PKGS[@]}"; do pacman -Q "$pkg" >/dev/null || fatal "Paquet toujours absent : $pkg"; done
     for pkg in "${MISSING[@]}"; do status_line "$GREEN" 'Installé' "$pkg"; done
     bilan_action 'Transaction Pacman terminée ; paquets requis présents.'
-    REPORT+=('Transaction Pacman terminée, présence des paquets vérifiée.')
 else
     bilan_ignore 'Paquets requis déjà présents.'
     status_line "$BLUE" 'Déjà présents' "${PKGS[*]}"
@@ -438,7 +400,6 @@ else
         bilan_debut
         download_fzf_tab
         bilan_action "Copie de fzf-tab téléchargée et vérifiée : $FZF_TAB_DIR"
-        REPORT+=("Copie locale de fzf-tab $FZF_TAB_VERSION vérifiée : $FZF_TAB_DIR")
     else
         verify_fzf_tab "$FZF_TAB_DIR"
         REPORT+=("Copie locale existante de fzf-tab vérifiée : $FZF_TAB_DIR")
@@ -458,7 +419,6 @@ bilan_debut
 SESSION=$(python3 -B "$DEPLOY_ENGINE" deploy "${DEPLOY_ARGS[@]}" --expected "$PLAN_TOKEN" --state-root "$BACKUP_ROOT") \
     || fatal 'Déploiement échoué ; consulter les messages et le dossier de sauvegarde affiché.'
 bilan_action "Configurations déployées et vérifiées en mode $MODE."
-REPORT+=("Configurations déployées et vérifiées en mode $MODE.")
 ok 'Déploiement vérifié.'
 
 # =============================================================================
@@ -484,11 +444,9 @@ if contains tealdeer "${SELECTED[@]}"; then
         bilan_debut
         tldr --update || fatal "Échec du cache Tealdeer ; configurations conservées. Retour arrière : $SESSION/restaurer.sh"
         bilan_action 'Cache Tealdeer mis à jour.'
-        REPORT+=('Cache Tealdeer mis à jour.')
     else
         info 'Cache Tealdeer conservé ; les exemples peuvent être indisponibles tant que le cache est absent.'
         bilan_ignore 'Mise à jour du cache Tealdeer passée.'
-        REPORT+=('Mise à jour du cache Tealdeer passée.')
     fi
 fi
 step 6 'Choisir le shell de connexion'
@@ -497,7 +455,6 @@ if contains zsh "${SELECTED[@]}"; then
     if [[ "$OLD_SHELL" == "$ZSH_PATH" || ( "${OLD_SHELL##*/}" == zsh && "$OLD_SHELL" -ef "$ZSH_PATH" ) ]]; then
         ok "Zsh est déjà le shell de connexion : $OLD_SHELL"
         bilan_ignore "Shell de connexion conservé : $OLD_SHELL"
-        REPORT+=("Shell de connexion conservé : $OLD_SHELL")
     else
         info "Shell actuel : $OLD_SHELL · Remplacement proposé : $ZSH_PATH"
         printf '  Commande     chsh -s %q\n' "$ZSH_PATH" >&2
@@ -514,10 +471,8 @@ if contains zsh "${SELECTED[@]}"; then
             NEW_ENTRY=$(getent passwd "$USER_NAME") || fatal 'Impossible de vérifier le shell après chsh.'
             [[ "${NEW_ENTRY##*:}" == "$ZSH_PATH" ]] || fatal "Changement de shell non confirmé. Voir $SESSION/restaurer.sh"
             bilan_action "Shell de connexion changé et vérifié : $OLD_SHELL → $ZSH_PATH"
-            REPORT+=("Shell de connexion changé et vérifié : $OLD_SHELL → $ZSH_PATH")
         else
             bilan_ignore "Shell de connexion conservé : $OLD_SHELL"
-            REPORT+=("Shell de connexion conservé : $OLD_SHELL")
         fi
     fi
 else

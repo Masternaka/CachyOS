@@ -4,6 +4,20 @@
 # Les tableaux conservent seulement les événements confirmés dans le processus
 # principal ; aucun bilan n'est imprimé depuis une substitution de commande.
 
+# Le flux ordinaire varie selon le script ; les erreurs vont toujours sur stderr.
+# Les libellés restent lisibles sans couleur (redirection, NO_COLOR, TERM=dumb).
+bilan_couleurs() {
+    GREEN='' YELLOW='' CYAN='' BLUE='' VIOLET='' BOLD='' RESET=''
+    STATE_RED='' SUMMARY_RED='' RED='' ERROR_RESET=''
+    [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]] || return 0
+    if [[ -t ${1:-1} ]]; then
+        GREEN='\033[1;32m' YELLOW='\033[1;33m' CYAN='\033[1;36m'
+        BLUE='\033[1;94m' VIOLET='\033[1;95m' BOLD='\033[1m' RESET='\033[0m'
+        STATE_RED='\033[1;31m' SUMMARY_RED='\033[1;31m'
+    fi
+    if [[ -t 2 ]]; then RED='\033[1;31m' ERROR_RESET='\033[0m'; fi
+}
+
 bilan_init() {
     BILAN_TITRE=$1
     shift
@@ -20,7 +34,7 @@ bilan_init() {
     local argument
     for argument in "$@"; do
         case "$argument" in
-            --help|-h|--list|--list-groups|--check-scripts) BILAN_ACTIF=false ;;
+            --help|-h|--list|--list-groups) BILAN_ACTIF=false ;;
             --dry-run|-n) BILAN_SIMULATION=true ;;
         esac
     done

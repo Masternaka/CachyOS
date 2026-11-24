@@ -170,9 +170,13 @@ class InstallZshTests(unittest.TestCase):
         self.assertEqual(json.loads((self.session() / 'journal.json').read_text())['status'], 'ready')
 
     def test_dry_run_writes_nothing_and_does_not_download(self):
+        # Un voisin invalide et non exécutable n’est pas un prérequis du terminal.
+        (self.repo / 'autre-script.sh').write_text('if syntaxe invalide')
         self.scenario['missing'] = ['kitty']
         result = self.run_script('--dry-run', answers='')
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn('Scripts Bash du dépôt', result.stderr)
+        self.assertNotIn('autre-script.sh', result.stderr)
         self.assertFalse(self.backups.exists())
         self.assertFalse(self.aliases.exists())
         self.assertEqual(self.conf.read_text(), self.original)

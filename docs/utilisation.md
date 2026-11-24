@@ -66,9 +66,8 @@ aux scripts sont conservés comme auparavant. Leurs chemins ne sont affichés qu
 lorsqu'ils sont connus ; un inventaire ne remplace pas une sauvegarde complète.
 
 Le bilan utilise la sortie d'erreur (`stderr`) pour préserver les listes et les
-aperçus de configuration sur la sortie standard. Les aides, les listes seules
-et le contrôle `--check-scripts` ne reçoivent pas de bilan supplémentaire
-lorsqu'ils réussissent. Le mode `--silent` du script
+aperçus de configuration sur la sortie standard. Les aides et les listes seules
+ne reçoivent pas de bilan supplémentaire lorsqu'elles réussissent. Le mode `--silent` du script
 03 conserve son comportement silencieux en cas de succès. Une erreur précoce
 affiche les informations disponibles ; `SIGKILL`, une coupure de courant ou une
 impossibilité d'écrire dans le terminal ne permettent pas de garantir un bilan.
@@ -162,7 +161,7 @@ Après examen, appliquer cette sélection depuis le compte normal :
 bash "05 - package_install.sh" --groups virtualisation,terminal
 ```
 
-Omettre `--groups` sélectionne les 59 paquets. **Même avec un seul groupe,
+Omettre `--groups` sélectionne les 41 paquets. **Même avec un seul groupe,
 Pacman met à jour l'ensemble du système** après confirmation. Les dépôts tiers
 et de test sont refusés. Une base locale absente ou ancienne peut empêcher
 l'aperçu ; préparer séparément la mise à jour, sans `pacman -Sy` isolé.

@@ -13,14 +13,7 @@ SNAPSHOT=''
 URI=qemu:///system
 PACKAGES=(qemu-full libvirt virt-manager edk2-ovmf swtpm)
 
-CYAN='' GREEN='' YELLOW='' BLUE='' VIOLET='' STATE_RED='' RED='' RESET='' ERROR_RESET=''
-if [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
-    if [[ -t 1 ]]; then
-        CYAN='\033[1;36m' GREEN='\033[1;32m' YELLOW='\033[1;33m' BLUE='\033[1;94m'
-        VIOLET='\033[1;95m' STATE_RED='\033[1;31m' RESET='\033[0m'
-    fi
-    if [[ -t 2 ]]; then RED='\033[1;31m' ERROR_RESET='\033[0m'; fi
-fi
+bilan_couleurs 1
 step() { BILAN_ETAPE="$*"; printf '\n%b── %s/%s  %s%b\n' "$CYAN" "$1" "$STEPS" "$2" "$RESET"; }
 info() { printf '  %s\n' "$*"; }
 status_line() { printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3"; }

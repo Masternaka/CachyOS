@@ -169,34 +169,27 @@ PACKAGE_GROUPS=(utilitaires polices langues securite internet multimedia communi
 PACKAGES=()
 append_group() {
   case "$1" in
-    utilitaires) PACKAGES+=("${GROUP_UTILITAIRES[@]}") ;;
-    polices) PACKAGES+=("${GROUP_POLICES[@]}") ;;
-    langues) PACKAGES+=("${GROUP_LANGUES[@]}") ;;
-    securite) PACKAGES+=("${GROUP_SECURITE[@]}") ;;
-    internet) PACKAGES+=("${GROUP_INTERNET[@]}") ;;
-    multimedia) PACKAGES+=("${GROUP_MULTIMEDIA[@]}") ;;
-    communication) PACKAGES+=("${GROUP_COMMUNICATION[@]}") ;;
-    bureautique) PACKAGES+=("${GROUP_BUREAUTIQUE[@]}") ;;
-    virtualisation) PACKAGES+=("${GROUP_VIRTUALISATION[@]}") ;;
-    terminaux) PACKAGES+=("${GROUP_TERMINAUX[@]}") ;;
-    terminal) PACKAGES+=("${GROUP_TERMINAL[@]}") ;;
-    developpement) PACKAGES+=("${GROUP_DEVELOPPEMENT[@]}") ;;
-    ia) PACKAGES+=("${GROUP_IA[@]}") ;;
-    kde) PACKAGES+=("${GROUP_KDE[@]}") ;;
+    utilitaires) PACKAGES+=(${GROUP_UTILITAIRES[@]+"${GROUP_UTILITAIRES[@]}"}) ;;
+    polices) PACKAGES+=(${GROUP_POLICES[@]+"${GROUP_POLICES[@]}"}) ;;
+    langues) PACKAGES+=(${GROUP_LANGUES[@]+"${GROUP_LANGUES[@]}"}) ;;
+    securite) PACKAGES+=(${GROUP_SECURITE[@]+"${GROUP_SECURITE[@]}"}) ;;
+    internet) PACKAGES+=(${GROUP_INTERNET[@]+"${GROUP_INTERNET[@]}"}) ;;
+    multimedia) PACKAGES+=(${GROUP_MULTIMEDIA[@]+"${GROUP_MULTIMEDIA[@]}"}) ;;
+    communication) PACKAGES+=(${GROUP_COMMUNICATION[@]+"${GROUP_COMMUNICATION[@]}"}) ;;
+    bureautique) PACKAGES+=(${GROUP_BUREAUTIQUE[@]+"${GROUP_BUREAUTIQUE[@]}"}) ;;
+    virtualisation) PACKAGES+=(${GROUP_VIRTUALISATION[@]+"${GROUP_VIRTUALISATION[@]}"}) ;;
+    terminaux) PACKAGES+=(${GROUP_TERMINAUX[@]+"${GROUP_TERMINAUX[@]}"}) ;;
+    terminal) PACKAGES+=(${GROUP_TERMINAL[@]+"${GROUP_TERMINAL[@]}"}) ;;
+    developpement) PACKAGES+=(${GROUP_DEVELOPPEMENT[@]+"${GROUP_DEVELOPPEMENT[@]}"}) ;;
+    ia) PACKAGES+=(${GROUP_IA[@]+"${GROUP_IA[@]}"}) ;;
+    kde) PACKAGES+=(${GROUP_KDE[@]+"${GROUP_KDE[@]}"}) ;;
     *) fatal "Groupe inconnu : $1. Utiliser --list-groups." 2 ;;
   esac
 }
 
 
 # Présentation du plan et du bilan dans le terminal.
-CYAN='' BOLD='' GREEN='' YELLOW='' BLUE='' VIOLET='' RED='' RESET='' ERROR_RESET=''
-if [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
-  if [[ -t 1 ]]; then
-    CYAN='\033[1;36m' BOLD='\033[1m' GREEN='\033[1;32m' YELLOW='\033[1;33m'
-    BLUE='\033[1;94m' VIOLET='\033[1;95m' RESET='\033[0m'
-  fi
-  if [[ -t 2 ]]; then RED='\033[1;31m' ERROR_RESET='\033[0m'; fi
-fi
+bilan_couleurs 1
 info() { printf '  %s\n' "$*"; }
 status_line() { printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3"; }
 ok() { status_line "$GREEN" 'OK' "$*"; }
@@ -261,7 +254,11 @@ for group in "${REQUESTED_PACKAGE_GROUPS[@]}"; do
   append_group "$group"
   SEEN_PACKAGE_GROUPS+="$group "
 done
-if $LIST_ONLY; then printf '%s\n' "${PACKAGES[@]}"; exit 0; fi
+if $LIST_ONLY; then
+  if (( ${#PACKAGES[@]} > 0 )); then printf '%s\n' "${PACKAGES[@]}"; fi
+  exit 0
+fi
+(( ${#PACKAGES[@]} > 0 )) || fatal 'Aucun paquet actif dans les groupes sélectionnés.' 2
 
 on_exit() {
   local status=$1
@@ -327,8 +324,8 @@ resolve_packages() {
   TARGETS=()
   info 'Paquets sélectionnés et dépôts (priorité de la configuration Pacman) :'
   for package in "${PACKAGES[@]}"; do
-    # Lire toute la sortie évite un SIGPIPE avec pipefail sur de grosses bases.
-    target=$(printf '%s\n' "$listing" | awk -v pkg="$package" '$2 == pkg && !found {print $1 "/" $2; found=1}')
+    # Respecter le premier dépôt trouvé dans l’ordre de priorité Pacman.
+    target=$(awk -v pkg="$package" '$2 == pkg && !found {print $1 "/" $2; found=1}' <<< "$listing")
     if [[ -z "$target" ]]; then
       error "Paquet introuvable : $package"
       missing=$((missing + 1))
@@ -421,11 +418,7 @@ TRANSACTION_STARTED=true
 # Une transaction groupée, cibles attachées au dépôt, confirmations natives.
 # Aucune synchronisation -Sy séparée susceptible de laisser une mise à jour partielle.
 status=0
-if [[ $EUID -eq 0 ]]; then
-  pacman -Syu --needed "${TARGETS[@]}" || status=$?
-else
-  "${SUDO[@]}" pacman -Syu --needed "${TARGETS[@]}" || status=$?
-fi
+${SUDO[@]+"${SUDO[@]}"} pacman -Syu --needed "${TARGETS[@]}" || status=$?
 step 4 'Vérifier la transaction et afficher le bilan'
 pacman -Q > "$SNAPSHOT/paquets-apres.txt" || fatal 'Lecture de l’état final impossible ; vérifier le journal Pacman.'
 (( status == 0 )) || fatal 'La transaction Pacman a échoué ou a été annulée. Aucun succès annoncé.' "$status"

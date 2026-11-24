@@ -7,17 +7,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/scripts/bilan.sh"
 bilan_init "01 · Services systemd" "$@"
 
 # ─── Affichage ───────────────────────────────────────────────────────────────
-GREEN='' YELLOW='' CYAN='' BLUE='' STATE_RED='' VIOLET='' BOLD='' RESET=''
-RED='' ERROR_RESET=''
-if [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
-  if [[ -t 1 ]]; then
-    GREEN='\033[1;32m' YELLOW='\033[1;33m' CYAN='\033[1;36m' BLUE='\033[1;94m'
-    STATE_RED='\033[1;31m' VIOLET='\033[1;95m' BOLD='\033[1m' RESET='\033[0m'
-  fi
-  if [[ -t 2 ]]; then
-    RED='\033[1;31m' ERROR_RESET='\033[0m'
-  fi
-fi
+bilan_couleurs 1
 
 info()   { printf '  %b[OK]%b %s\n' "$GREEN" "$RESET" "$*"; }
 warn()   { printf '  %b[Attention]%b %s\n' "$YELLOW" "$RESET" "$*"; }

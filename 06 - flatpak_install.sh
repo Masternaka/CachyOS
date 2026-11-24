@@ -57,14 +57,7 @@ catalogue=(
 )
 
 # Présentation du plan et du bilan dans le terminal.
-CYAN='' BOLD='' GREEN='' YELLOW='' BLUE='' VIOLET='' SUMMARY_RED='' RED='' RESET='' ERROR_RESET=''
-if [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
-  if [[ -t 1 ]]; then
-    CYAN='\033[1;36m' BOLD='\033[1m' GREEN='\033[1;32m' YELLOW='\033[1;33m'
-    BLUE='\033[1;94m' VIOLET='\033[1;95m' SUMMARY_RED='\033[1;31m' RESET='\033[0m'
-  fi
-  if [[ -t 2 ]]; then RED='\033[1;31m' ERROR_RESET='\033[0m'; fi
-fi
+bilan_couleurs 1
 info() { printf '  %s\n' "$*"; }
 status_line() { printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3"; }
 ok() { status_line "$GREEN" 'OK' "$*"; }
@@ -359,9 +352,9 @@ warn 'L’accord couvre l’ajout éventuel de Flathub, les applications sélect
 info 'Les applications déjà présentes pourront être mises à jour. Les questions d’installation recevront leurs réponses par défaut.'
 if ! confirm 'Autoriser toute cette installation ?'; then bilan_annule 'Installation refusée avant application.'; info 'Installation annulée.'; exit 0; fi
 
-APPROVED_HOST=$(printf '%s\n' "${HOST_TARGETS[@]}" "$HOST_REPOS")
+APPROVED_HOST=$(printf '%s\n' ${HOST_TARGETS[@]+"${HOST_TARGETS[@]}"} "$HOST_REPOS")
 read_host_plan
-[[ "$APPROVED_HOST" == "$(printf '%s\n' "${HOST_TARGETS[@]}" "$HOST_REPOS")" ]] ||
+[[ "$APPROVED_HOST" == "$(printf '%s\n' ${HOST_TARGETS[@]+"${HOST_TARGETS[@]}"} "$HOST_REPOS")" ]] ||
     fatal 'Le plan Pacman a changé. Relancer pour examiner les nouvelles cibles.'
 if $FLATPAK_PREVIEW; then recheck_flatpak_plan; fi
 if (( ${#HOST_TARGETS[@]} > 0 )); then

@@ -83,7 +83,6 @@ class PacmanSettingsTests(unittest.TestCase):
         source = SCRIPT.read_text()
         for old, new in [('PACMAN_CONF="/etc/pacman.conf"', 'PACMAN_CONF=' + shlex.quote(str(self.conf))),
                          ('BACKUP_DIR="/etc/pacman.conf.backups"', 'BACKUP_DIR=' + shlex.quote(str(self.backups))),
-                         ('LOG_FILE="${ARCH_CUSTOM_LOGFILE:-/var/log/pacman_parallel_downloads.log}"', 'LOG_FILE=' + shlex.quote(str(self.log))),
                          ('[[ $EUID -ne 0 ]]', '[[ 1 -eq 0 ]]')]:
             assert source.count(old) == 1, old
             source = source.replace(old, new, 1)
@@ -294,16 +293,19 @@ class PacmanSettingsTests(unittest.TestCase):
         self.assertFalse(self.backups.exists())
         self.assertFalse(self.log.exists())
 
-    def test_lock_failure_and_unwritable_log(self):
+    def test_lock_failure_prevents_changes(self):
         self.config['locked'] = True
         self.assertEqual(self.run_script('--value', '8').returncode, 1)
         self.assertEqual(self.conf.read_text(), self.original)
-        self.config.clear()
-        self.log.mkdir()
+
+    def test_result_is_terminal_only_even_with_legacy_log_setting(self):
+        self.env['ARCH_CUSTOM_LOGFILE'] = str(self.log)
         result = self.run_script('--value', '8')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('Journal inaccessible', result.stderr)
+        self.assertFalse(self.log.exists())
         self.assertIn('ParallelDownloads = 8', self.conf.read_text())
+        self.assertIn('Résultat     : Réussi', result.stderr)
+        self.assertIn('Retour arrière', result.stderr)
 
     def test_backup_names_are_unique_and_noop_does_not_add_backup(self):
         self.assertEqual(self.run_script('--value', '8').returncode, 0)

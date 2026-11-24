@@ -23,15 +23,6 @@ Il s’ouvre aussi en lançant le script via Bash sans argument dans un terminal
 `q` quitte le menu avant toute application. `--dry-run` seul affiche directement
 le plan de la sélection par défaut.
 
-```bash
-bash "04 - install_zsh.sh" --check-scripts
-```
-
-Ce contrôle lit les scripts Bash à la racine du dépôt. En vert, le fichier
-est exécutable et passe `bash -n`. En rouge, il manque la permission
-d’exécution directe ou la syntaxe Bash est invalide. Un script lisible et
-syntaxiquement valide peut être lancé avec `bash "nom du script.sh"`.
-Le contrôle apparaît aussi dans le plan normal et ne change aucun droit.
 Les configurations du plan sont indiquées comme conformes, à créer, à lier ou
 à remplacer.
 

@@ -47,7 +47,7 @@ arrière. Les commandes de ces guides sont des exemples à exécuter volontairem
 | 02 | [Choisir le pare-feu ou ses règles](docs/firewalld.md) | Aperçu puis application avec `sudo` et confirmation ; peut modifier l'accès réseau. |
 | 03 | [Régler les téléchargements Pacman](docs/pacman-settings.md) | Aperçu de `ParallelDownloads` ; valeur explicite appliquée avec `sudo`, sans seconde confirmation. |
 | 04 | [Installer et configurer le terminal](docs/zsh.md) | 16 modules ; compte normal, mode copie ou Stow et accords distincts. |
-| 05 | [Installer les paquets natifs](docs/package-install.md) | 59 paquets, 14 groupes ; confirmation puis mise à jour complète du système. |
+| 05 | [Installer les paquets natifs](docs/package-install.md) | 41 paquets, 14 groupes ; confirmation puis mise à jour complète du système. |
 | 06 | [Installer les applications Flatpak](docs/flatpak-install.md) | 13 applications ; compte normal, un accord pour le plan sélectionné. |
 | 07 | [Préparer QEMU et Virt-Manager](docs/qemu.md) | Compte normal ; confirmations pour paquets, libvirt et accès facultatif ; NAT désactivable. |
 | 08 | [Ajouter master-archrepo](docs/master-archrepo.md) | Empreinte vérifiée obligatoire ; avec `sudo`, sans simulation ni confirmation intégrée. |
@@ -106,14 +106,16 @@ ne peut pas décrire l'état de l'ordinateur CachyOS. Le contrôle statique vér
 les syntaxes et la cohérence documentaire. Les tests avec écritures isolées font
 l'objet d'une commande distincte dans le [guide de validation](docs/validation.md).
 
-En cas de refus ou d'échec, lire le premier diagnostic, conserver le chemin du
-rapport ou de la sauvegarde et examiner l'état obtenu avant de relancer. Une
+En cas de refus ou d'échec, lire le premier diagnostic, conserver le chemin de
+la sauvegarde ou de l’inventaire et examiner l'état obtenu avant de relancer. Une
 installation interrompue peut laisser des paquets ou des dépendances présents.
 Un inventaire ne remplace pas une sauvegarde système ou des données.
 
 Les onze scripts affichent un **bilan commun dans le terminal** : résultat,
 actions confirmées, éléments inchangés ou ignorés, erreurs et chemins de suivi.
-Il apparaît aussi après une annulation ou un échec interceptable. Voir
+Aucun fichier de rapport final n’est créé. Les sauvegardes et inventaires utiles
+au retour arrière sont conservés. Le bilan apparaît aussi après une annulation
+ou un échec interceptable. Voir
 [comment lire le bilan](docs/utilisation.md#lire-le-bilan-final). Conserver le
 dossier `scripts/` avec les scripts numérotés, car il contient `bilan.sh`.
 

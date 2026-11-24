@@ -2,10 +2,11 @@
 
 [Accueil](../README.md) · [Utiliser les scripts](utilisation.md) · [Tous les guides](../README.md#choisir-un-script)
 
-Le script `05 - package_install.sh` propose 59 paquets par défaut et installe la
+Le script `05 - package_install.sh` propose 41 paquets par défaut et installe la
 sélection dans une seule transaction `pacman -Syu --needed dépôt/paquet…`, après
 confirmation.
-Il remplace l'ancien client `tldr` par `tealdeer`, déjà configuré par le script Zsh.
+Tealdeer et les autres modules du terminal sont proposés séparément par le
+[script 04](zsh.md).
 Les autres choix actifs et les exemples commentés sont conservés.
 Distrobox et Podman sont maintenant actifs dans la liste pour préparer BoxBuddy.
 
@@ -68,29 +69,31 @@ dont [master-archrepo](master-archrepo.md), arrête le contrôle de provenance.
 
 | Groupe | Paquets |
 | --- | --- |
-| `utilitaires` | `catfish`, `flameshot`, `gnome-disk-utility`, `gparted`, `qbittorrent`, `transmission-qt`, `timeshift`, `7zip`, `stow` |
+| `utilitaires` | `flameshot`, `gnome-disk-utility`, `gparted`, `qbittorrent`, `transmission-qt`, `stow` |
 | `polices` | `ttf-jetbrains-mono-nerd`, `ttf-meslo-nerd`, `ttf-firacode-nerd` |
 | `langues` | `firefox-i18n-fr`, `thunderbird-i18n-fr` |
-| `securite` | `bitwarden`, `proton-pass`, `firewalld`, `firewall-config` |
+| `securite` | `bitwarden`, `proton-pass`, `ufw`, `gufw` |
 | `internet` | `firefox`, `thunderbird`, `brave-origin-bin`, `floorp-bin` |
 | `multimedia` | `strawberry`, `mpv` |
 | `communication` | `vesktop-bin` |
 | `bureautique` | `libreoffice-fresh`, `libreoffice-fresh-fr`, `obsidian` |
-| `virtualisation` | `qemu-full`, `swtpm`, `virt-manager`, `distrobox`, `podman` |
-| `terminaux` | `kitty`, `foot`, `ghostty` |
-| `terminal` | `btop`, `fastfetch`, `tealdeer`, `git`, `curl`, `wget`, `yazi`, `starship` |
+| `virtualisation` | `distrobox`, `podman` |
+| `terminaux` | `kitty` |
+| `terminal` | `fastfetch`, `git`, `curl`, `wget`, `starship` |
 | `developpement` | `micro`, `code`, `github-desktop`, `meld`, `zed` |
 | `ia` | `openai-codex`, `claude-desktop`, `claude-code` |
-| `kde` | `merkuro`, `dolphin-plugins`, `isoimagewriter`, `yakuake`, `krusader`, `systemdgenie`, `print-manager` |
+| `kde` | Aucun paquet actif ; exemples commentés conservés dans le script. |
 
 ## Provenance et contrôle sur la cible
 
 Le script vérifie les bases locales et les dépôts configurés avant toute
 installation. Aucun recours automatique à l'AUR ni téléchargement externe.
 Consulter le [catalogue CachyOS](https://packages.cachyos.org/) pour la disponibilité
-courante. Les 59 noms actifs sont conservés tels que choisis dans le dépôt ; cette
+courante. Les 41 noms actifs sont conservés tels que choisis dans le dépôt ; cette
 mise à jour ne prétend pas avoir revérifié individuellement leur disponibilité.
 Une entrée absente reste bloquante, sans substitution silencieuse.
+Un groupe entièrement commenté produit une liste vide avec `--list` ; son
+installation seule est refusée avant toute commande système.
 
 ### Relevé historique du 12 novembre 2026
 
