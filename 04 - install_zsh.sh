@@ -13,10 +13,8 @@ DRY_RUN=false
 INTERACTIVE=false
 USE_THEME=true
 STARSHIP_PALETTE=mocha
-PALETTE_GIVEN=false
 REPLACE_COMMANDS=false
-MODE=copy
-MODE_GIVEN=false
+MODE=
 ONLY=''
 RESTORE=''
 FZF_TAB_URL='https://github.com/Aloxaf/fzf-tab.git'
@@ -68,22 +66,20 @@ Le module Yazi prépare aussi Micro comme éditeur de texte par défaut.
 Depuis Fish, lancer avec bash comme dans les exemples. Fish peut rester
 le shell de connexion.
 
-  --interactive        Ouvre le menu de sélection (aussi sans argument dans un terminal)
-  --dry-run, -n        Plan sans écriture, téléchargement ou installation
+  --dry-run           Plan sans écriture, téléchargement ou installation
   --mode copy|stow     Copies (défaut) ou liens GNU Stow
   --only LISTE         Modules séparés par virgules ; défaut : les 16 modules
-  --no-theme           Conserver le thème existant ; ne pas déployer starship
-  --palette VARIANTE   Catppuccin Powerline : mocha, macchiato, frappe ou latte
-  --replace-commands   Activer les alias remplaçant ls/cat/cp/mv/rm/etc.
-  --extras             Compatibilité : fd, delta, lazygit sont inclus par défaut
   --restore DOSSIER    Restaurer une session sauvegardée (confirmation requise)
   --help, -h           Afficher l'aide
+
+Dans un terminal, sans --mode ni --only, le menu propose les modules,
+le mode de déploiement, le thème Starship et les alias Zsh.
 
 Modules : zsh,starship,yazi,btop,tealdeer,bat,fzf,zoxide,eza,ripgrep,fd,delta,
           lazygit,kitty,foot,duf
 duf affiche l'espace disque sans configuration à déployer ni alias pour df.
 Exemples :
-  bash "04 - install_zsh.sh" --interactive --dry-run
+  bash "04 - install_zsh.sh" --dry-run
   bash "04 - install_zsh.sh" --mode stow --only zsh,starship,kitty,foot
 
 Accords distincts : paquets/mise à jour système, téléchargement éventuel fzf-tab,
@@ -92,36 +88,27 @@ GNU Stow est prévu dans les deux modes pour pouvoir être utilisé ultérieurem
 Aucun paquet manquant n'est installé sans confirmation ni --noconfirm.
 HELP
 }
-if (( $# == 0 )) && [[ -t 0 ]]; then INTERACTIVE=true; fi
 while (( $# > 0 )); do
     case "$1" in
-        --interactive) INTERACTIVE=true; shift ;;
-        --dry-run|-n) DRY_RUN=true; shift ;;
-        --no-theme) USE_THEME=false; shift ;;
-        --replace-commands) REPLACE_COMMANDS=true; shift ;;
-        --extras) shift ;;
-        --mode|--only|--restore|--palette)
+        --dry-run) DRY_RUN=true; shift ;;
+        --mode|--only|--restore)
             (( $# >= 2 )) && [[ -n "$2" && "$2" != -* ]] || fatal "Valeur manquante pour $1" 2
             case "$1" in
-                --mode) MODE="$2"; MODE_GIVEN=true ;;
+                --mode) MODE="$2" ;;
                 --only) ONLY="$2" ;;
                 --restore) RESTORE="$2" ;;
-                --palette) STARSHIP_PALETTE="$2"; PALETTE_GIVEN=true ;;
             esac
             shift 2 ;;
         --help|-h) show_help; exit 0 ;;
         *) fatal "Argument inconnu : $1" 2 ;;
     esac
 done
-[[ "$MODE" == copy || "$MODE" == stow ]] || fatal 'Mode attendu : copy ou stow.' 2
-case "$STARSHIP_PALETTE" in
-    mocha|macchiato|frappe|latte) ;;
-    *) fatal 'Variante attendue : mocha, macchiato, frappe ou latte.' 2 ;;
-esac
-if $PALETTE_GIVEN && { ! $USE_THEME || [[ -n "$RESTORE" ]]; }; then
-    fatal '--palette s’utilise pour déployer Starship.' 2
+if [[ -n "$RESTORE" && -n "$MODE$ONLY" ]]; then
+    fatal '--restore s’utilise seul.' 2
 fi
-if [[ -n "$RESTORE" ]] && $INTERACTIVE; then fatal '--restore ouvre sa propre confirmation.' 2; fi
+if [[ -t 0 && -z "$MODE$ONLY$RESTORE" ]]; then INTERACTIVE=true; fi
+MODE=${MODE:-copy}
+[[ "$MODE" == copy || "$MODE" == stow ]] || fatal 'Mode attendu : copy ou stow.' 2
 trap 'bilan_print "$?"' EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
@@ -189,19 +176,15 @@ done
 step 2 'Choisir les modules et préparer le plan'
 if $INTERACTIVE; then
     info 'Entrée garde le choix par défaut. Tapez q pour quitter.'
-    if ! $MODE_GIVEN; then
-        read_choice 'Déploiement [1 = copies, 2 = liens GNU Stow, défaut 1] :'
-        case "$CHOICE" in
-            ''|1) MODE=copy ;;
-            2) MODE=stow ;;
-            *) fatal 'Choisissez 1 pour les copies ou 2 pour Stow.' 2 ;;
-        esac
-    fi
-    if [[ -z "$ONLY" ]]; then
-        info "Modules disponibles : ${ALL_MODULES[*]}"
-        read_choice 'Modules séparés par des virgules [Entrée = tous] :'
-        ONLY="$CHOICE"
-    fi
+    read_choice 'Déploiement [1 = copies, 2 = liens GNU Stow, défaut 1] :'
+    case "$CHOICE" in
+        ''|1) MODE=copy ;;
+        2) MODE=stow ;;
+        *) fatal 'Choisissez 1 pour les copies ou 2 pour Stow.' 2 ;;
+    esac
+    info "Modules disponibles : ${ALL_MODULES[*]}"
+    read_choice 'Modules séparés par des virgules [Entrée = tous] :'
+    ONLY="$CHOICE"
 fi
 if [[ -n "$ONLY" ]]; then
     [[ "$ONLY" != *, && "$ONLY" != ,* && "$ONLY" != *,,* ]] || fatal 'Liste de modules mal formée.' 2
@@ -213,7 +196,7 @@ SELECTED=()
 SELECTION=''
 contains() { local needle="$1" item; shift; for item in "$@"; do [[ "$item" == "$needle" ]] && return 0; done; return 1; }
 if $INTERACTIVE; then
-    if $USE_THEME && ! $PALETTE_GIVEN && contains starship "${REQUESTED[@]}"; then
+    if contains starship "${REQUESTED[@]}"; then
         info 'Starship · Catppuccin Powerline'
         printf '  1  Mocha (par défaut)\n  2  Macchiato\n  3  Frappé\n  4  Latte (clair)\n  0  Conserver le thème actuel\n' >&2
         read_choice 'Variante [1] :'
@@ -226,7 +209,7 @@ if $INTERACTIVE; then
             *) fatal 'Choisissez une variante de 1 à 4, ou 0 pour garder le thème actuel.' 2 ;;
         esac
     fi
-    if ! $REPLACE_COMMANDS && contains zsh "${REQUESTED[@]}"; then
+    if contains zsh "${REQUESTED[@]}"; then
         read_choice 'Alias Zsh [1 = raccourcis distincts, 2 = remplacer ls/cat/cp/mv/rm…, défaut 1] :'
         case "$CHOICE" in
             ''|1) ;;
@@ -247,8 +230,6 @@ done
 if contains starship "${SELECTED[@]}"; then
     REPORT+=("Starship · Catppuccin Powerline · $STARSHIP_PALETTE")
     info "Variante Starship : $STARSHIP_PALETTE"
-elif $PALETTE_GIVEN; then
-    fatal '--palette exige le module starship dans la sélection.' 2
 fi
 REPORT+=("Compte : $USER_NAME · Shell initial : $OLD_SHELL" "Mode : $MODE · Modules : $SELECTION")
 info "Mode : $MODE · Modules : $SELECTION"
@@ -465,7 +446,6 @@ if contains zsh "${SELECTED[@]}"; then
             CURRENT_ENTRY=$(getent passwd "$USER_NAME") || fatal 'Impossible de relire le compte avant chsh.'
             [[ "${CURRENT_ENTRY##*:}" == "$OLD_SHELL" ]] || fatal 'Shell modifié depuis le début ; changement annulé.'
             python3 -B "$DEPLOY_ENGINE" mark-shell "$SESSION" --user "$USER_NAME" --old "$OLD_SHELL" --new "$ZSH_PATH"
-            REPORT+=("Changement de shell demandé : $OLD_SHELL → $ZSH_PATH")
             bilan_debut
             chsh -s "$ZSH_PATH" || fatal "Échec de chsh ; configuration conservée. Voir $SESSION/restaurer.sh"
             NEW_ENTRY=$(getent passwd "$USER_NAME") || fatal 'Impossible de vérifier le shell après chsh.'

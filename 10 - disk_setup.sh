@@ -28,7 +28,7 @@ Usage : bash "10 - disk_setup.sh" [--dry-run]
 
 Sans option : affiche les quatre volumes et propose de continuer dans un terminal.
 --dry-run   Affiche seulement l’inventaire et le plan, sans sudo.
---apply     Ancienne commande conservée pour un lancement direct avec sudo.
+--help      Affiche cette aide.
 
 Le plan comprend le montage automatique des volumes au démarrage via /etc/fstab.
 Le script demande sudo avant les vérifications administrateur. Les volumes
@@ -40,17 +40,12 @@ MODE=interactive
 case "$#:${1:-}" in
     0:) ;;
     1:--dry-run) MODE=preview ;;
-    1:--apply) MODE=apply ;;
     1:--help|1:-h) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
 esac
 
 step 'CachyOS · Volumes secondaires'
-if [[ "$MODE" == apply ]]; then
-    status "$YELLOW" 'Privilèges' 'Les droits administrateur sont requis pour modifier les labels et la propriété.'
-    (( EUID == 0 )) || fatal 'Lancer sans option pour suivre le menu, ou avec sudo pour --apply.'
-    [[ -t 0 && -t 1 ]] || fatal 'Un terminal interactif est requis pour appliquer.'
-elif [[ "$MODE" == preview || ! -t 0 || ! -t 1 ]]; then
+if [[ "$MODE" == preview || ! -t 0 || ! -t 1 ]]; then
     MODE=preview
     status "$CYAN" 'Simulation' 'Aucun sudo nécessaire. L’inventaire sera lu sans monter les volumes.'
 else
@@ -128,7 +123,7 @@ if (( EUID != 0 )); then
     fi
     command -v sudo >/dev/null || fatal 'Outil manquant : sudo.'
     script_path=$(realpath -e -- "${BASH_SOURCE[0]}") || fatal 'Chemin du script introuvable.'
-    exec sudo -- /usr/bin/bash -- "$script_path" --apply
+    exec sudo -- /usr/bin/bash -- "$script_path"
 fi
 
 for tool in blkid blockdev chown cmp cp e2label find findfs flock mkdir mktemp mount mountpoint mv realpath rm rmdir sha256sum umount; do
@@ -260,7 +255,6 @@ cleanup() {
     if (( result != 0 )) && ! $FSTAB_INSTALLED; then
         for path in ${CREATED_MOUNT_PATHS[@]+"${CREATED_MOUNT_PATHS[@]}"}; do rmdir -- "$path" || result=1; done
     fi
-    printf '  Relevé et journal : %s\n' "$SNAPSHOT"
     bilan_print "$result"
     exit "$result"
 }
@@ -342,7 +336,7 @@ for i in "${!UUIDS[@]}"; do
     status "$GREEN" 'Vérifié' "Label « $label » et propriétaire $OWNER."
 done
 
-step '4 · Activer le montage au démarrage et afficher le bilan'
+step '4 · Activer le montage au démarrage'
 if [[ -n "$FSTAB_STAGE" ]]; then
     [[ -f "$FSTAB" && ! -L "$FSTAB" && "$(sha256sum -- "$FSTAB")" == "$FSTAB_BEFORE" ]] ||
         fatal "$FSTAB a changé. Le fichier existant est conservé."
@@ -355,5 +349,5 @@ if [[ -n "$FSTAB_STAGE" ]]; then
     FSTAB_STAGE=''
     bilan_action 'Montage automatique enregistré dans /etc/fstab.'
 fi
+BILAN_TOTAUX="${#UUIDS[@]} volumes vérifiés."
 bilan_note 'Vérifier le montage des volumes au prochain démarrage.'
-status "$GREEN" 'Terminé' "${#UUIDS[@]} volumes vérifiés. Le montage automatique prendra effet au prochain démarrage."

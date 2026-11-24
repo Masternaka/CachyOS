@@ -10,15 +10,24 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class RepositoryTests(unittest.TestCase):
-    def test_native_catalogue_matches_documentation(self):
-        packages = subprocess.check_output(['bash', str(ROOT / '05 - package_install.sh'), '--list'], text=True).splitlines()
-        text = (ROOT / 'docs/package-install.md').read_text()
-        catalogue = text.split('### Catalogue actuel\n', 1)[1].split('## Provenance', 1)[0]
-        rows = re.findall(r'^\| `[^`]+` \| (.*?) \|$', catalogue, re.M)
-        documented = [item for row in rows for item in re.findall(r'`([^`]+)`', row)]
-        self.assertEqual(documented, packages)
-        for filename in ('README.md', 'docs/package-install.md', 'docs/flatpak-install.md'):
-            self.assertIn(f'{len(packages)} paquets', (ROOT / filename).read_text(), filename)
+    def test_native_catalogue_matches_the_groups_in_help(self):
+        command = ['bash', str(ROOT / '05 - package_install.sh')]
+        help_text = subprocess.check_output([*command, '--help'], text=True)
+        groups = help_text.split('Groupes disponibles :\n', 1)[1].split()
+        self.assertTrue(groups)
+        self.assertEqual(len(groups), len(set(groups)))
+
+        packages = subprocess.check_output([*command, '--list'], text=True).splitlines()
+        self.assertTrue(packages)
+        self.assertEqual(len(packages), len(set(packages)))
+        combined = []
+        for group in groups:
+            with self.subTest(group=group):
+                listing = subprocess.check_output([*command, '--groups', group, '--list'], text=True)
+                combined.extend(listing.splitlines())
+        self.assertEqual(packages, combined)
+        selected = subprocess.check_output([*command, '--groups', ','.join(groups), '--list'], text=True)
+        self.assertEqual(selected.splitlines(), packages)
 
     def test_zsh_module_list_matches_engine(self):
         shell = (ROOT / '04 - install_zsh.sh').read_text()

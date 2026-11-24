@@ -82,7 +82,6 @@ if cmd == 'info':
     elif '--show-origin' in args: print('other' if c.get('wrong_origin_after') else s['apps'][ref][0])
     else: sys.exit(8)
     sys.exit(0)
-if cmd == 'uninstall' and c.get('cleanup_failure'): sys.exit(1)
 state_file.write_text(json.dumps(s))
 '''
 
@@ -109,11 +108,10 @@ class FlatpakTests(unittest.TestCase):
         self.apps = [line.split()[0] for line in lines]
         self.refs = ['app/' + app + '/x86_64/stable' for app in self.apps]
 
-    def run_script(self, *args, terminal=False, answers=('o',), selection=None, path=SCRIPT):
+    def run_script(self, *args, terminal=False, answers=('o',), selection='', path=SCRIPT):
         (self.root / 'config.json').write_text(json.dumps(self.config))
         (self.root / 'state.json').write_text(json.dumps(self.state))
-        choices = ['--all'] if terminal and selection is None else []
-        cmd = ['/bin/bash', str(path), *choices, *args]
+        cmd = ['/bin/bash', str(path), *args]
         if not terminal:
             return subprocess.run(cmd, env=self.env, capture_output=True, text=True)
         master, slave = pty.openpty()
@@ -121,7 +119,7 @@ class FlatpakTests(unittest.TestCase):
         os.close(slave)
         output = b''
         sent = 0
-        selection_sent = selection is None
+        selection_sent = False
         deadline = time.monotonic() + 20
         try:
             while True:
@@ -179,7 +177,7 @@ class FlatpakTests(unittest.TestCase):
 
     def test_dry_run_has_no_network_or_writes(self):
         self.state['remote'] = False
-        result = self.run_script('--dry-run', '--cleanup')
+        result = self.run_script('--dry-run')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('disponibilité distante', result.stdout)
         self.assert_no_changes()
@@ -293,9 +291,9 @@ class FlatpakTests(unittest.TestCase):
         self.assertIn('11 nouvelles, 1 mises à jour, 1 inchangées, 0 erreurs', result.stdout)
         self.assertEqual(sum(c[1] == 'update' for c in self.operations()), 2)
 
-    def test_failed_install_returns_error_without_retry_or_cleanup(self):
+    def test_failed_install_returns_error_without_retry(self):
         self.config['failed_app'] = self.refs[0]
-        result = self.run_script('--cleanup', terminal=True)
+        result = self.run_script(terminal=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('1 erreurs', result.stdout)
         self.assertEqual(sum(c[1] == 'install' and self.refs[0] in c for c in self.operations()), 1)
@@ -305,16 +303,10 @@ class FlatpakTests(unittest.TestCase):
         self.config['wrong_origin_after'] = True
         self.assertNotEqual(self.run_script(terminal=True).returncode, 0)
 
-    def test_cleanup_is_optional_and_separately_confirmed(self):
-        result = self.run_script('--cleanup', terminal=True, answers=('o', 'n'))
+    def test_successful_install_never_uninstalls_runtimes(self):
+        result = self.run_script(terminal=True)
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertFalse(any(c[1] == 'uninstall' for c in self.operations()))
-
-    def test_cleanup_failure_is_reported(self):
-        self.config['cleanup_failure'] = True
-        result = self.run_script('--cleanup', terminal=True, answers=('o', 'o'))
-        self.assertNotEqual(result.returncode, 0)
-        self.assertTrue(any(c[1] == 'uninstall' for c in self.operations()))
 
     def test_snapshot_or_remote_creation_failure_blocks_installation(self):
         self.state['remote'] = False

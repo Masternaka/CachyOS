@@ -53,16 +53,6 @@ done
 
 if ! $NETWORK; then bilan_ignore 'Préparation du réseau NAT passée (--no-network).'; fi
 
-on_exit() {
-    local status=$1
-    if (( status != 0 )) && [[ -n "$SNAPSHOT" ]]; then
-        warn "Opération incomplète. Inventaire privé : $SNAPSHOT"
-    fi
-    bilan_print "$status"
-}
-trap 'on_exit "$?"' EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
 STEPS=5
 printf '%bCachyOS · QEMU/KVM et Virt-Manager%b\n' "$CYAN" "$RESET"
 if $DRY_RUN; then
@@ -160,9 +150,8 @@ if (( ${#TARGETS[@]} > 0 )); then
     show_command sudo pacman -Syu --needed -- "${TARGETS[@]}"
 fi
 if $DRY_RUN; then
-    step 3 'Bilan de la simulation'
+    step 3 'Limites de l’aperçu'
     info 'L’état des réseaux et pools sera lu après accord pour la configuration libvirt.'
-    status_line "$CYAN" 'Simulation' 'Simulation terminée. Aucune modification appliquée.'
     exit 0
 fi
 
@@ -190,9 +179,8 @@ if (( ${#TARGETS[@]} > 0 )); then
 else
     status_line "$BLUE" 'Déjà installés' 'Tous les paquets requis sont présents.'
 fi
-for tool in virsh virt-manager; do
-    command -v "$tool" >/dev/null || fatal "Commande attendue absente : $tool."
-done
+command -v virsh >/dev/null || fatal 'Commande virsh absente après vérification du paquet libvirt. Voir docs/qemu.md.'
+command -v virt-manager >/dev/null || fatal 'Commande virt-manager absente après vérification du paquet virt-manager. Voir docs/qemu.md.'
 
 step 4 'Confirmer et préparer libvirt'
 select_units
@@ -294,7 +282,7 @@ else
     info 'Les règles Polkit de la machine déterminent l’authentification dans Virt-Manager.'
 fi
 
-step 5 'Vérifier et afficher le bilan'
+step 5 'Vérifier les services, le stockage et le réseau'
 for unit in "${UNITS[@]}"; do
     active_rc=0 boot_rc=0
     active_state=$(systemctl is-active "$unit") || active_rc=$?
@@ -335,5 +323,4 @@ else
     warn 'Capacités KVM non confirmées. Une VM de test reste à démarrer après diagnostic.'
 fi
 bilan_note 'Démarrer une VM de test pour vérifier le disque, KVM et la connectivité de l’invité.'
-status_line "$VIOLET" 'Sauvegarde' "$SNAPSHOT"
 show_command virt-manager --connect "$URI"

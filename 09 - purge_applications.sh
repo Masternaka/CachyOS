@@ -30,7 +30,6 @@ bilan_couleurs 1
 step() { BILAN_ETAPE="$*"; printf '\n%b── %s%b\n' "$CYAN" "$1" "$RESET"; }
 info() { printf '  %s\n' "$*"; }
 status_line() { printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3"; }
-ok() { status_line "$GREEN" 'OK' "$*"; }
 warn() { status_line "$YELLOW" 'Attention' "$*"; }
 fatal() { bilan_erreur "$*"; printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$*" >&2; exit 1; }
 show_command() { printf ' '; printf ' %q' "$@"; printf '\n'; }
@@ -439,7 +438,7 @@ if (( ${#NATIVE_TARGETS[@]} > 0 )); then
     done
 fi
 
-step '4 · Mettre de côté les configurations et afficher le bilan'
+step '4 · Mettre de côté les configurations'
 for index in "${!CONFIG_TARGETS[@]}"; do
     path="${CONFIG_TARGETS[index]}"
     check_config_parents "$path"
@@ -455,5 +454,4 @@ for index in "${!CONFIG_TARGETS[@]}"; do
     bilan_action "Configuration mise de côté : $path"
     status_line "$VIOLET" 'Configuration sauvegardée' "$path"
 done
-ok "${#NATIVE_TARGETS[@]} paquet(s) Pacman et ${#FLATPAK_TARGETS[@]} application(s) Flatpak retirés."
-status_line "$VIOLET" 'Sauvegardes' "$SNAPSHOT"
+BILAN_TOTAUX="${#NATIVE_TARGETS[@]} paquet(s) Pacman et ${#FLATPAK_TARGETS[@]} application(s) Flatpak retirés."

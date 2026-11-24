@@ -16,7 +16,7 @@ deux touches successives. Dans `Ctrl+Maj+T`, les touches s’enfoncent ensemble.
 | fzf-tab | Après une commande ou un début de chemin, `Tab` ouvre les complétions dans FZF lorsque le plugin est chargé. La complétion de `cd` utilise un aperçu eza si l’outil est installé. |
 | Zoxide | `z projet` rejoint un dossier déjà visité, `zi projet` choisit un résultat dans FZF, `z -` revient au dossier précédent. [Commandes Zoxide](https://github.com/ajeetdsouza/zoxide#getting-started) |
 | Yazi | `y` ouvre Yazi et reporte le dernier dossier dans Zsh à la sortie. Dans Yazi, `g` puis `h` ouvre le dossier personnel, `g` puis `c` ouvre `~/.config` et `g` puis `/` ouvre la racine. Par défaut, `Entrée` ouvre le fichier, `O` choisit l’application, `q` quitte et `F1` ou `~` ouvre l’aide. [Éditeur Yazi et erreur 127](zsh.md#ouvrir-un-fichier-texte-dans-yazi) · [Guide Yazi](https://yazi-rs.github.io/docs/quick-start/#keybindings) |
-| Eza | `ll` liste les détails, `la` inclut les fichiers cachés, `lt` affiche l’arbre et `l` liste un nom par ligne. |
+| Eza | `ll` liste les détails, `la` inclut les fichiers cachés, `lt` affiche l’arbre sur deux niveaux et `l` liste un nom par ligne. |
 | Bat | `ccat FICHIER` affiche un fichier colorisé sans pagination. `bat FICHIER` utilise la pagination selon la sortie. |
 | Ripgrep | `rg -n 'motif' .` cherche dans le contenu avec les numéros de ligne. `rg --files` liste les fichiers examinables. |
 | fd | `fd 'motif'` cherche par nom. `fd -t d 'motif'` limite la recherche aux dossiers. |
@@ -26,8 +26,8 @@ deux touches successives. Dans `Ctrl+Maj+T`, les touches s’enfoncent ensemble.
 | Micro | `micro FICHIER` ouvre l’éditeur. Les touches de base sont `Ctrl+S` pour enregistrer, `Ctrl+Q` pour quitter et `Ctrl+E` pour ouvrir la barre de commandes. [Raccourcis Micro](https://github.com/zyedidia/micro/blob/master/runtime/help/defaultkeys.md) |
 | VS Code | Par défaut sous Linux, `Ctrl+P` ouvre un fichier par son nom et `Ctrl+Maj+P` ouvre la palette de commandes. [Raccourcis VS Code](https://code.visualstudio.com/docs/reference/default-keybindings) |
 
-Les alias `ls`, `cat`, `cp`, `mv` et `rm` facultatifs suivent le choix
-`--replace-commands` du script 04. [Liste des alias Zsh](../Dotfiles/zsh/.config/cachyos-zsh/aliases.zsh)
+Le menu du script 04 permet d’activer les alias facultatifs qui remplacent
+`ls`, `cat`, `cp`, `mv` et `rm`. [Liste des alias Zsh](../Dotfiles/zsh/.config/cachyos-zsh/aliases.zsh)
 
 ### Terminaux
 

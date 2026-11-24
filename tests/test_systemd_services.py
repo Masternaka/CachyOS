@@ -80,10 +80,10 @@ class ServicesTests(unittest.TestCase):
         self.copy = self.root / 'script.sh'
         self.copy.write_text(SCRIPT.read_text().replace('[[ $EUID -ne 0 ]]', '[[ 1 -eq 0 ]]', 1))
 
-    def run_script(self, *args, original=False):
+    def run_script(self, *args, original=False, answers='o\no\n'):
         (self.root / 'config').write_text(json.dumps(self.config))
         (self.root / 'states').write_text(json.dumps(self.states))
-        return subprocess.run(['/bin/bash', str(SCRIPT if original else self.copy), *args], env=self.env, text=True, capture_output=True)
+        return subprocess.run(['/bin/bash', str(SCRIPT if original else self.copy), *args], env=self.env, input=answers, text=True, capture_output=True)
 
     def calls(self):
         file = self.root / 'calls'
@@ -114,6 +114,22 @@ class ServicesTests(unittest.TestCase):
         self.assertEqual(self.actions(), [])
         self.assertFalse(list(self.root.glob('undo-*')))
 
+    def test_declining_plan_leaves_units_and_undo_files_untouched(self):
+        result = self.run_script(answers='o\n\n')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertLess(result.stdout.index('sshd.service — serait'), result.stdout.index('Appliquer les actions'))
+        self.assertIn('Résultat     : Annulé', result.stderr)
+        self.assertEqual(self.actions(), [])
+        self.assertFalse(any(call[0] == 'mktemp' for call in self.calls()))
+
+    def test_default_selection_leaves_ssh_alone(self):
+        self.config['missing_pkg'] = 'openssh'
+        result = self.run_script(answers='\no\n')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self.actions()), len(UNITS) - 1)
+        self.assertTrue(all(call[-1] != 'sshd.service' for call in self.actions()))
+        self.assertFalse(any(['pacman', '-Q', 'openssh'] == call for call in self.calls()))
+
     def test_enabled_but_stopped_gets_started(self):
         self.states[UNITS[0]]['UnitFileState'] = 'enabled'
         result = self.run_script()
@@ -124,7 +140,9 @@ class ServicesTests(unittest.TestCase):
     def test_already_ready_is_noop(self):
         for state in self.states.values():
             state.update(UnitFileState='enabled', ActiveState='active')
-        self.assertEqual(self.run_script().returncode, 0)
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Résultat     : Déjà conforme', result.stderr)
         self.assertEqual(self.actions(), [])
         self.assertFalse(list(self.root.glob('undo-*')))
 
@@ -133,8 +151,7 @@ class ServicesTests(unittest.TestCase):
         result = self.run_script()
         self.assertEqual(result.returncode, 1)
         self.assertEqual(len(self.actions()), len(UNITS))
-        self.assertIn('objectif non atteint', result.stderr)
-        self.assertNotIn('Terminé — toutes', result.stdout)
+        self.assertIn("échec de l'activation/démarrage", result.stderr)
         self.assertEqual(result.stderr.count('── Bilan de l’opération'), 1)
         self.assertIn('Résultat     : Partiellement réussi', result.stderr)
 

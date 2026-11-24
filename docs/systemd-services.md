@@ -2,18 +2,20 @@
 
 [Accueil](../README.md) · [Utiliser les scripts](utilisation.md) · [Tous les guides](../README.md#choisir-un-script)
 
-Le script `01 - systemd_services.sh` active durablement et démarre
-`bluetooth.service`, `sshd.service`, `fstrim.timer` et `paccache.timer`. Il nécessite
-CachyOS/Arch, un gestionnaire systemd accessible et les paquets `bluez`, `openssh`,
-`util-linux` et `pacman-contrib`. Il n'installe aucun paquet. `bluez-utils` n'est
-pas requis. Le serveur SSH écoute selon sa configuration et les règles du
-pare-feu restent inchangées.
+Le script `01 - systemd_services.sh` prépare l’activation de
+`bluetooth.service`, `fstrim.timer` et `paccache.timer`. Il propose aussi d’inclure
+`sshd.service`. Entrée conserve l’état actuel de SSH. Il nécessite CachyOS/Arch,
+un gestionnaire systemd accessible et les paquets `bluez`, `util-linux` et
+`pacman-contrib`. `openssh` est requis uniquement si SSH est sélectionné.
+Le serveur SSH écoute selon sa configuration et les règles du pare-feu en place.
 
 ## Prévisualiser et appliquer
 
-Depuis la racine du dépôt, examiner d’abord les actions, puis lancer l’application
-sur CachyOS lorsqu’elle est souhaitée. La seconde commande applique directement le
-plan. Prévoir un accès local si SSH est ton seul accès à la machine.
+Depuis la racine du dépôt, utiliser `--dry-run` pour examiner le plan.
+Dans un terminal, la simulation propose aussi d’inclure SSH. Pour appliquer,
+relancer avec `sudo`, refaire le choix SSH et confirmer les actions affichées.
+Entrée à la confirmation annule le plan. Avant chaque action, le script
+vérifie que l’état de l’unité correspond toujours à celui du plan.
 
 ```bash
 bash "01 - systemd_services.sh" --help

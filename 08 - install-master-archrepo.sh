@@ -12,7 +12,7 @@ server="$base/x86_64"
 config=/etc/pacman.conf
 
 bilan_couleurs 1
-step() { BILAN_ETAPE="$*"; printf '\n%b── %s/4  %s%b\n' "$CYAN" "$1" "$2" "$RESET"; }
+step() { BILAN_ETAPE="$*"; printf '\n%b── %s/3  %s%b\n' "$CYAN" "$1" "$2" "$RESET"; }
 info() { printf '  %s\n' "$*"; }
 status_line() { printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3"; }
 fail() { bilan_erreur "$*";
@@ -116,16 +116,7 @@ if ! cmp -s -- "$candidate" "$work/original"; then
     cmp -s -- "$config" "$work/original" || fail "$config a changé. Relancez le script."
     mv -T -- "$candidate" "$config"
     bilan_action "Section [$repo] ajoutée à $config."
-fi
-
-step 4 'Afficher le bilan'
-if [[ -n "$backup" ]]; then
-    status_line "$GREEN" 'Dépôt ajouté' "$repo"
-    status_line "$VIOLET" 'Sauvegarde' "$backup"
 else
     bilan_ignore "Section [$repo] déjà conforme dans $config."
-    status_line "$BLUE" 'Déjà conforme' "$config contient déjà la section [$repo]."
 fi
-bilan_note 'Les applications SambaPilot et DotfilePilot ne sont pas installées par ce script.'
-info 'Pour installer les deux applications :'
-info 'sudo pacman -Syu master-archrepo/sambapilot master-archrepo/dotfilepilot'
+bilan_note 'Installation de SambaPilot et DotfilePilot : sudo pacman -Syu master-archrepo/sambapilot master-archrepo/dotfilepilot'

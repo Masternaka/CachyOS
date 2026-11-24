@@ -32,16 +32,16 @@ subordonnés de Podman et les services D-Bus effectifs peuvent demander une
 vérification dans le compte utilisateur. [Portails de Niri](https://github.com/niri-wm/niri/wiki/Important-Software#portals) ·
 [Easy Effects](https://github.com/wwmm/easyeffects) · [Distrobox](https://distrobox.it/)
 
-Distrobox et Podman figurent aussi parmi les 41 paquets du
-[script 05](package-install.md). Les applications de ce guide proviennent du
+Distrobox et Podman figurent aussi dans le groupe `virtualisation` du
+[script 05](package-install.md#choisir-les-groupes). Les applications de ce guide proviennent du
 dépôt personnel Flathub.
 
 ## Sélection, simulation et confirmation
 
 Le menu affiche le catalogue numéroté. Saisir par exemple `2,3` pour Warehouse
 et Flatseal, appuyer sur Entrée pour tout sélectionner ou taper `q` pour
-quitter. Pour passer directement au plan, utiliser `--all` ou
-`--only 2,3`. `--only` accepte aussi des identifiants exacts séparés par des
+quitter. Pour passer directement au plan, utiliser `--only 2,3`.
+Cette option accepte aussi `tout` ou des identifiants exacts séparés par des
 virgules. Une simulation sans terminal et sans sélection explicite examine
 le catalogue complet.
 
@@ -60,7 +60,6 @@ Pour une exécution souhaitée sur la machine Linux :
 
 ```bash
 bash "06 - flatpak_install.sh"
-bash "06 - flatpak_install.sh" --all
 bash "06 - flatpak_install.sh" --only io.github.flattool.Warehouse,com.github.tchx84.Flatseal
 ```
 
@@ -116,14 +115,12 @@ Les origines, commits et présences sont contrôlés après chaque transaction.
 
 ## Nettoyage et bilan
 
-Aucun nettoyage par défaut. Avec `--cleanup`, si aucune installation ou mise à
-jour n'a échoué, une confirmation séparée propose
-`flatpak uninstall --user --unused`. Le dialogue natif affiche les éléments
-concernés et permet de refuser. Une erreur ou annulation signalée par Flatpak
-est conservée comme telle, sans être présentée comme une absence de runtimes.
+Pour nettoyer volontairement les runtimes inutilisés du compte, lancer
+`flatpak uninstall --user --unused` séparément. Flatpak affiche les éléments
+concernés avant confirmation.
 
 Le bilan distingue les applications nouvelles, mises à jour, inchangées et les
-erreurs. Toute installation, mise à jour, vérification ou suppression en échec
+erreurs. Toute installation, mise à jour ou vérification en échec
 entraîne un code non nul. Une erreur individuelle de transaction n'empêche pas
 les suivantes ; `Ctrl+C` interrompt le script. Un échec de lecture d'inventaire
 est bloquant. Aucun succès global n'est annoncé après une erreur détectée.

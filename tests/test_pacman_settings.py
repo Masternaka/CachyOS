@@ -130,14 +130,11 @@ class PacmanSettingsTests(unittest.TestCase):
         self.assertIn('# ParallelDownloads=2', self.conf.read_text())
         self.assertIn('effectif : 1', result.stderr)
 
-    def test_auto_with_and_without_silent(self):
-        for extra in [(), ('--silent',)]:
-            with self.subTest(extra=extra):
-                self.conf.write_text(self.original)
-                result = self.run_script('--auto', *extra)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn('ParallelDownloads = 8', self.conf.read_text())
-                if extra: self.assertEqual(result.stderr, '')
+    def test_auto_reports_and_applies_the_estimated_value(self):
+        result = self.run_script('--auto')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('ParallelDownloads = 8', self.conf.read_text())
+        self.assertIn('Bilan de l’opération', result.stderr)
 
     def test_noninteractive_missing_and_conflicting_arguments(self):
         for args in [(), ('--silent',), ('--value',), ('--value', '08x'), ('--value', '21'),
@@ -310,7 +307,9 @@ class PacmanSettingsTests(unittest.TestCase):
     def test_backup_names_are_unique_and_noop_does_not_add_backup(self):
         self.assertEqual(self.run_script('--value', '8').returncode, 0)
         first = self.saved()
-        self.assertEqual(self.run_script('--value', '8').returncode, 0)
+        result = self.run_script('--value', '8')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Résultat     : Déjà conforme', result.stderr)
         self.assertEqual(self.saved(), first)
         self.assertEqual(self.run_script('--value', '7').returncode, 0)
         self.assertEqual(len(self.saved()), 2)

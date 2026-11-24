@@ -50,10 +50,14 @@ check_target() {
   # Lecture de texte seulement : ne pas exécuter /etc/os-release.
   grep -Eq '^ID=(cachyos|"cachyos")$' /etc/os-release || fatal 'CachyOS non détecté.'
   (( EUID != 0 )) || fatal 'Ne pas utiliser sudo pour lancer ce script.'
-  for tool in paru pacman pacman-conf git makepkg sudo awk grep mktemp; do
+  command -v paru >/dev/null || fatal 'Commande paru absente. Vérifier le paquet paru dans les dépôts configurés. Voir docs/aur-install.md.'
+  for tool in pacman pacman-conf makepkg sudo awk grep mktemp; do
     command -v "$tool" >/dev/null 2>&1 || fatal "Prérequis manquant : $tool (installation séparée nécessaire)."
   done
-  pacman -Q base-devel git >/dev/null || fatal 'base-devel et git doivent être déjà installés.'
+  pacman -Q base-devel >/dev/null || fatal 'Paquet base-devel absent. Voir les prérequis dans docs/aur-install.md.'
+  if ! command -v git >/dev/null || ! pacman -Q git >/dev/null; then
+    fatal 'Git indisponible. Vérifier le paquet git avec bash "05 - package_install.sh" --dry-run --groups terminal.'
+  fi
   database=$(pacman-conf DBPath) || fatal 'Lecture de DBPath impossible.'
   [[ -n "$database" && -d "$database" ]] || fatal 'Base Pacman absente.'
   [[ ! -e "${database%/}/db.lck" ]] || fatal 'Pacman est occupé ; ne pas supprimer son verrou.'
@@ -91,12 +95,12 @@ finish() {
   if [[ -n "$RUN_DIR" ]]; then
     if ! pacman -Q > "$RUN_DIR/paquets-apres.txt"; then
       bilan_erreur 'Inventaire final incomplet.'
-      printf 'Attention : inventaire final incomplet.\n' >&2
       result=1
     fi
-    printf '\nDossier de suivi conservé : %s\n' "$RUN_DIR"
-    printf 'Une interruption ne désinstalle pas les paquets déjà installés.\n'
-    printf 'Ce dossier temporaire ne remplace pas une sauvegarde système.\n'
+    bilan_note 'Le dossier de suivi temporaire ne remplace pas une sauvegarde système.'
+    if (( result != 0 )); then
+      bilan_note 'Le script ne désinstalle pas les paquets déjà traités.'
+    fi
   fi
   bilan_print "$result"
   exit "$result"
@@ -196,5 +200,5 @@ for package in "${PACKAGES[@]}"; do
     bilan_action "$package : présence finale vérifiée ($after_state)."
   fi
 done
-bilan_note 'La présence des paquets ne garantit pas leur sécurité ; le dossier de suivi est temporaire.'
-printf '\nLes quatre paquets sont présents. Cela ne valide pas leur sécurité.\n'
+BILAN_TOTAUX="${#PACKAGES[@]} paquets AUR présents."
+bilan_note 'La présence des paquets ne garantit pas leur sécurité.'

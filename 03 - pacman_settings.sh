@@ -11,7 +11,6 @@ BACKUP_DIR="/etc/pacman.conf.backups"
 MODE=''
 VALUE=''
 RESTORE_FILE=''
-SILENT_MODE=false
 DRY_RUN=false
 SNAPSHOT=''
 CANDIDATE=''
@@ -26,7 +25,6 @@ Usage : bash "03 - pacman_settings.sh" [OPTIONS]
 
   --restore [FICHIER]  Restaure une sauvegarde précise, sinon la plus récente
   --auto               Estime une valeur selon le CPU et la RAM (pas le réseau)
-  --silent             Supprime les messages ordinaires, jamais les erreurs
   --value N            Définit la valeur décimale N (0-20)
   --dry-run            Affiche le résultat prévu sans aucune écriture
   --help, -h           Affiche cette aide
@@ -41,7 +39,6 @@ Exemples :
   bash "03 - pacman_settings.sh" --dry-run --auto         # Simulation
   sudo bash "03 - pacman_settings.sh" --auto             # Estimation matérielle
   sudo bash "03 - pacman_settings.sh" --value 5           # Définir à 5
-  sudo bash "03 - pacman_settings.sh" --silent --value 3  # Sans interaction
   sudo bash "03 - pacman_settings.sh" --restore           # Dernière sauvegarde
 HELP
 }
@@ -50,14 +47,14 @@ HELP
 bilan_couleurs 2
 
 status_line() {
-    if ! $SILENT_MODE; then printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3" >&2; fi
+    printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3" >&2
 }
 detail() { status_line "$BOLD" "$1" "$2"; }
 ok() { status_line "$GREEN" 'OK' "$*"; }
 dry() { status_line "$CYAN" 'Simulation' "$*"; }
 warn() { status_line "$YELLOW" 'Attention' "$*"; }
 step() { BILAN_ETAPE="$*";
-    if ! $SILENT_MODE; then printf '\n%b── %s/3  %s%b\n' "$CYAN" "$1" "$2" "$RESET" >&2; fi
+    printf '\n%b── %s/3  %s%b\n' "$CYAN" "$1" "$2" "$RESET" >&2
 }
 error() { bilan_erreur "$*"; printf '  %b[Échec]%b %s\n' "$RED" "$RESET" "$*" >&2; }
 fatal() { error "$1"; exit "${2:-1}"; }
@@ -84,14 +81,13 @@ while (( $# > 0 )); do
             select_mode value
             (( $# >= 2 )) || fatal 'Option --value : valeur manquante.' 2
             VALUE="$2"; shift 2 ;;
-        --silent) SILENT_MODE=true; shift ;;
         --dry-run) DRY_RUN=true; shift ;;
         --help|-h) show_help; exit 0 ;;
         *) fatal "Argument inconnu : $1" 2 ;;
     esac
 done
 
-if ! $SILENT_MODE; then printf '%bCachyOS · Réglages de Pacman%b\n' "$BOLD" "$RESET" >&2; fi
+printf '%bCachyOS · Réglages de Pacman%b\n' "$BOLD" "$RESET" >&2
 if $DRY_RUN; then
     dry 'Aucun sudo nécessaire et aucune modification appliquée.'
 else
@@ -101,7 +97,7 @@ fi
 # Mode interactif uniquement sur un terminal ; aucune activation automatique
 # implicite depuis une tâche planifiée, un pipe ou une entrée redirigée.
 if [[ -z "$MODE" ]]; then
-    if $SILENT_MODE || [[ ! -t 0 ]]; then
+    if [[ ! -t 0 ]]; then
         fatal 'Indiquez explicitement --value N, --auto ou --restore.' 2
     fi
     MODE=value
@@ -278,7 +274,6 @@ if $DRY_RUN; then
         warn 'La configuration candidate et les Include seront validés lors de l’application.'
     fi
     step 3 'Bilan de la simulation'
-    dry 'Simulation terminée.'
     exit 0
 fi
 
@@ -322,8 +317,10 @@ fi
 ok "Configuration préparée et validée. Valeur effective prévue : $EXPECTED_VALUE"
 if cmp -s -- "$CANDIDATE" "$SNAPSHOT"; then
     step 3 'Vérifier le résultat'
+    [[ ! -L "$PACMAN_CONF" ]] && cmp -s -- "$PACMAN_CONF" "$SNAPSHOT" \
+        || fatal 'Configuration modifiée pendant la préparation ; relancez le script.'
+    bilan_conforme
     bilan_ignore 'La configuration correspond déjà à la demande.'
-    status_line "$BLUE" 'Inchangé' 'La configuration correspond déjà au résultat demandé.'
     exit 0
 fi
 
@@ -355,7 +352,5 @@ mv -f -- "$CANDIDATE" "$PACMAN_CONF"
 validate_pacman_syntax "$PACMAN_CONF" || exit 1
 [[ "$EFFECTIVE_VALUE" == "$EXPECTED_VALUE" ]] || fatal 'Valeur effective différente après remplacement.'
 COMMIT_PENDING=false
-bilan_action "Configuration validée : ParallelDownloads effectif = $EFFECTIVE_VALUE."
-if [[ "$MODE" == restore ]]; then result_label='Restauré'; else result_label='Appliqué'; fi
-status_line "$GREEN" "$result_label" "Modification validée. ParallelDownloads effectif : $EFFECTIVE_VALUE"
-status_line "$VIOLET" 'Retour arrière' "sudo bash \"$0\" --restore \"$BACKUP_FILE\""
+if [[ "$MODE" == restore ]]; then result_label='restaurée'; else result_label='appliquée'; fi
+bilan_action "Configuration $result_label et validée. ParallelDownloads effectif : $EFFECTIVE_VALUE."

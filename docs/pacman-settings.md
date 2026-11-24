@@ -20,8 +20,8 @@ bash "03 - pacman_settings.sh" --dry-run --auto
 `--auto` fournit une estimation selon le CPU et la RAM totale, sans mesure du
 réseau ni des miroirs. Les modes `--auto`, `--value` et `--restore` sont exclusifs.
 Sans mode explicite, le script demande une valeur sur un terminal et refuse une
-entrée non interactive. `--silent` conserve les erreurs visibles. Les étapes
-s’affichent sur la sortie d’erreur et l’aperçu du fichier sur la sortie standard.
+entrée non interactive. Les étapes et le bilan s’affichent sur la sortie
+d’erreur, et l’aperçu du fichier sur la sortie standard.
 
 Pour appliquer la valeur examinée, lancer `sudo bash "03 - pacman_settings.sh" --value 5`.
 Le mode explicite applique directement la valeur. Le script vérifie ses dépendances

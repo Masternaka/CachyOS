@@ -8,12 +8,12 @@
 # Les libellés restent lisibles sans couleur (redirection, NO_COLOR, TERM=dumb).
 bilan_couleurs() {
     GREEN='' YELLOW='' CYAN='' BLUE='' VIOLET='' BOLD='' RESET=''
-    STATE_RED='' SUMMARY_RED='' RED='' ERROR_RESET=''
+    STATE_RED='' RED='' ERROR_RESET=''
     [[ -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]] || return 0
     if [[ -t ${1:-1} ]]; then
         GREEN='\033[1;32m' YELLOW='\033[1;33m' CYAN='\033[1;36m'
         BLUE='\033[1;94m' VIOLET='\033[1;95m' BOLD='\033[1m' RESET='\033[0m'
-        STATE_RED='\033[1;31m' SUMMARY_RED='\033[1;31m'
+        STATE_RED='\033[1;31m'
     fi
     if [[ -t 2 ]]; then RED='\033[1;31m' ERROR_RESET='\033[0m'; fi
 }
@@ -24,6 +24,7 @@ bilan_init() {
     BILAN_ACTIF=true
     BILAN_IMPRIME=false
     BILAN_COMMENCE=false
+    BILAN_CONFORME=false
     BILAN_ANNULE=false
     BILAN_SIMULATION=false
     BILAN_RETOUR_ARRIERE=false
@@ -31,11 +32,12 @@ bilan_init() {
     BILAN_IGNORES=()
     BILAN_ERREURS=()
     BILAN_NOTES=()
+    BILAN_TOTAUX=''
     local argument
     for argument in "$@"; do
         case "$argument" in
-            --help|-h|--list|--list-groups) BILAN_ACTIF=false ;;
-            --dry-run|-n) BILAN_SIMULATION=true ;;
+            --help|-h|--list) BILAN_ACTIF=false ;;
+            --dry-run) BILAN_SIMULATION=true ;;
         esac
     done
     trap 'bilan_print "$?"' EXIT
@@ -48,6 +50,8 @@ bilan_init() {
 # après les vérifications propres au script. Une sauvegarde seule n'est pas une
 # preuve que l'opération demandée a réussi.
 bilan_debut() { BILAN_COMMENCE=true; }
+# Les appelants signalent la conformité après avoir vérifié l'état demandé.
+bilan_conforme() { BILAN_CONFORME=true; }
 bilan_action() { BILAN_ACTIONS+=("$*"); }
 bilan_ignore() { BILAN_IGNORES+=("$*"); }
 bilan_erreur() { BILAN_ERREURS+=("$*"); }
@@ -114,7 +118,6 @@ bilan_print() {
     BILAN_IMPRIME=true
     # Une erreur d'arguments reste visible, même si --list avait été demandé.
     if ! $BILAN_ACTIF && (( code == 0 )); then return 0; fi
-    if [[ ${SILENT_MODE:-false} == true ]] && (( code == 0 )); then return 0; fi
 
     # Les scripts 09 et 11 simulent par défaut ; le 10 peut devenir un aperçu
     # lorsqu'il est lancé sans terminal. Lire le mode réellement retenu.
@@ -137,12 +140,15 @@ bilan_print() {
         resultat='Simulation terminée'
     elif (( ${#BILAN_ERREURS[@]} > 0 )); then
         resultat='Terminé avec avertissements'
+    elif $BILAN_CONFORME && ! $BILAN_COMMENCE && (( ${#BILAN_ACTIONS[@]} == 0 )); then
+        resultat='Déjà conforme'
     else
         resultat='Réussi'
     fi
 
     printf '\n── Bilan de l’opération ──────────────────────────────\n' >&2
     printf '  Script       : %s\n  Résultat     : %s\n  Code de sortie : %s\n' "$BILAN_TITRE" "$resultat" "$code" >&2
+    if [[ -n "$BILAN_TOTAUX" ]]; then printf '  Totaux       : %s\n' "$BILAN_TOTAUX" >&2; fi
     if (( code != 0 )) && [[ -n ${BILAN_ETAPE:-} ]]; then
         printf '  Dernière étape : %s\n' "$BILAN_ETAPE" >&2
     fi

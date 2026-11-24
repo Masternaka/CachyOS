@@ -12,7 +12,8 @@ script se choisit selon le besoin : les numéros ne sont pas un ordre obligatoir
 
 1. Ouvrir un terminal dans le dossier du dépôt qui contient ce README.
 2. Lire le guide du script et vérifier ses prérequis sur la machine CachyOS cible.
-3. Afficher l'aide puis le plan lorsqu'un mode `--dry-run` existe.
+3. Ajouter `--dry-run` pour voir le plan. Les menus s’ouvrent directement dans
+   le terminal. Utiliser `--help` pour consulter les options du script choisi.
 4. Examiner les changements, les sauvegardes et le retour arrière avant de lancer
    volontairement l'application réelle.
 
@@ -21,10 +22,8 @@ utiliser `bash`, même depuis Fish ou Zsh. Il n'est pas nécessaire de rendre le
 scripts exécutables pour les lancer ainsi.
 
 ```bash
-# Exemple : aide et aperçu des paquets natifs, sans installation.
-bash "05 - package_install.sh" --help
-bash "05 - package_install.sh" --list
-bash "05 - package_install.sh" --dry-run
+# Ouvrir le menu Flatpak et examiner le plan.
+bash "06 - flatpak_install.sh" --dry-run
 ```
 
 La plupart des aperçus nécessitent les outils et l'état réel de CachyOS.
@@ -32,8 +31,8 @@ Un résultat incomplet ou un outil absent demande un examen ; il n'autorise pas
 une installation automatique. Sur une autre machine, commencer par les guides.
 
 **Ne pas lancer tous les scripts à la suite ni ajouter `sudo` partout.**
-Les scripts 01 et 08 appliquent directement leur action lorsqu'ils sont lancés
-avec les droits et arguments requis. Les commandes exactes et les confirmations
+Le script 08 applique directement son action lorsqu'il est lancé avec les droits
+et l’empreinte requis. Les commandes exactes et les confirmations
 propres aux onze scripts sont dans le [guide d'utilisation](docs/utilisation.md).
 
 ## Choisir un script
@@ -43,11 +42,11 @@ arrière. Les commandes de ces guides sont des exemples à exécuter volontairem
 
 | Nº | Besoin et guide | Comportement à connaître |
 | --- | --- | --- |
-| 01 | [Activer Bluetooth, SSH et les timers](docs/systemd-services.md) | `--dry-run` pour examiner ; application avec `sudo`, sans confirmation intégrée. |
+| 01 | [Activer Bluetooth, SSH et les timers](docs/systemd-services.md) | `--dry-run` pour examiner. SSH facultatif et confirmation du plan avant application. |
 | 02 | [Choisir le pare-feu ou ses règles](docs/firewalld.md) | Aperçu puis application avec `sudo` et confirmation ; peut modifier l'accès réseau. |
 | 03 | [Régler les téléchargements Pacman](docs/pacman-settings.md) | Aperçu de `ParallelDownloads` ; valeur explicite appliquée avec `sudo`, sans seconde confirmation. |
 | 04 | [Installer et configurer le terminal](docs/zsh.md) | 16 modules ; compte normal, mode copie ou Stow et accords distincts. |
-| 05 | [Installer les paquets natifs](docs/package-install.md) | 41 paquets, 14 groupes ; confirmation puis mise à jour complète du système. |
+| 05 | [Installer les paquets natifs](docs/package-install.md) | Essentiels, groupes au choix ou catalogue complet. Confirmation avant la mise à jour complète. |
 | 06 | [Installer les applications Flatpak](docs/flatpak-install.md) | 13 applications ; compte normal, un accord pour le plan sélectionné. |
 | 07 | [Préparer QEMU et Virt-Manager](docs/qemu.md) | Compte normal ; confirmations pour paquets, libvirt et accès facultatif ; NAT désactivable. |
 | 08 | [Ajouter master-archrepo](docs/master-archrepo.md) | Empreinte vérifiée obligatoire ; avec `sudo`, sans simulation ni confirmation intégrée. |
@@ -57,8 +56,8 @@ arrière. Les commandes de ces guides sont des exemples à exécuter volontairem
 
 ### Installation des logiciels : quel parcours choisir ?
 
-- **Dépôts CachyOS et Arch :** script 05, pour toute la sélection ou certains
-  groupes. Il installe les logiciels sans déployer leurs configurations.
+- **Dépôts CachyOS et Arch :** script 05, pour les essentiels, des groupes
+  choisis ou tout le catalogue. Il installe les logiciels sans déployer leurs configurations.
 - **Flathub personnel :** script 06, dans le compte concerné et de préférence
   depuis la session Niri pour détecter ses portails.
 - **AUR :** script 11, pour `t3code-bin`, `herdr-bin`, `orca-ide-bin` et `gitkraken`,

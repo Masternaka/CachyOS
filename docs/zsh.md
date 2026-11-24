@@ -15,13 +15,13 @@ L'exécution réelle sur votre ordinateur doit rester une action autorisée.
 Depuis la racine du dépôt, utilisez la même commande dans Fish, Bash ou Zsh :
 
 ```bash
-bash "04 - install_zsh.sh" --interactive --dry-run
+bash "04 - install_zsh.sh" --dry-run
 ```
 
 Le menu propose le mode de déploiement, les modules, la palette Starship et les alias Zsh.
-Il s’ouvre aussi en lançant le script via Bash sans argument dans un terminal.
-`q` quitte le menu avant toute application. `--dry-run` seul affiche directement
-le plan de la sélection par défaut.
+Dans un terminal, lancer le script sans option pour ouvrir le même menu avant
+l’application. `q` quitte le menu. Les options `--mode` et `--only` vont directement
+au plan avec la palette Mocha et les raccourcis Zsh distincts.
 
 Les configurations du plan sont indiquées comme conformes, à créer, à lier ou
 à remplacer.
@@ -92,26 +92,14 @@ Le rapport final récapitule les modules, les installations et vérifications
 effectuées, les actions facultatives et le chemin du retour arrière lorsqu’une
 session de sauvegarde est disponible.
 
-Autres options :
+Le menu Starship propose Mocha (par défaut), Macchiato, Frappé, Latte et
+l’option de conserver le thème actuel. Une variante autre que Mocha produit
+un `starship.toml` propre au compte, sauvegardé comme une copie même en mode
+Stow. [Preset Starship](https://starship.rs/presets/catppuccin-powerline)
 
-- `--no-theme` : ne pas déployer le module Starship et conserver la sélection du
-  thème existant ; ses autres outils peuvent toujours être configurés.
-- `--palette mocha|macchiato|frappe|latte` : sélectionner la variante du thème
-  Catppuccin Powerline. Mocha est le choix par défaut. Le menu propose aussi de
-  conserver le thème actuel. Les variantes autres que Mocha produisent un
-  `starship.toml` propre au compte, sauvegardé comme une copie même si les autres
-  modules sont déployés en liens Stow. [Preset Starship](https://starship.rs/presets/catppuccin-powerline)
-- `--replace-commands` : activer les alias remplaçant les commandes usuelles
-  (`ls`, `cat`, `less`, `cp`, `mv`, `rm`, etc.). Sans cette option, les raccourcis
-  distincts comme `ll`, `ccat` et `dfh` sont utilisés.
-
-Pour prévisualiser uniquement Starship en Macchiato.
-
-```bash
-bash "04 - install_zsh.sh" --dry-run --only starship --palette macchiato
-```
-- `--extras` : option conservée pour compatibilité ; fd, Delta et Lazygit sont
-  maintenant compris dans la sélection par défaut. `--only` permet de les exclure.
+Le menu des alias propose les raccourcis distincts (`ll`, `ccat`, `dfh`) par
+défaut, ou les alias qui remplacent les commandes usuelles (`ls`, `cat`,
+`less`, `cp`, `mv`, `rm`, etc.).
 
 ## Confirmations et téléchargements
 

@@ -6,8 +6,7 @@ set -Eeuo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/scripts/bilan.sh"
 bilan_init "02 · Pare-feu" "$@"
 DRY_RUN=false
-INTERACTIVE=false
-DEFAULT_ZONE=home
+DEFAULT_ZONE=
 ALLOWED_SERVICES=()
 SERVICES_ARG=''
 SESSION=''
@@ -29,16 +28,15 @@ step()  { BILAN_ETAPE="$*"; printf '\n%b── %s/4  %s%b\n' "$CYAN" "$1" "$2" "
 
 usage() {
   cat <<'HELP'
-Usage : bash "02 - firewalld_settings.sh" [--interactive] [--dry-run]
+Usage : bash "02 - firewalld_settings.sh" [--dry-run]
         bash "02 - firewalld_settings.sh" --services ssh,samba|ssh|samba|none [options]
-  --interactive  Détecte UFW et firewalld, puis propose une désactivation
-                 et l’installation de Gufw ou Firewall Config.
   --zone ZONE    Zone par défaut à définir (home par défaut).
   --services LISTE  Configure les règles d’un firewalld déjà actif.
   --dry-run      Lire et présenter le plan sans écriture ni élévation.
   --help, -h     Afficher cette aide.
 
-Sans --services, le menu s’ouvre dans un terminal. Avec --services,
+Sans --services, le menu détecte UFW et firewalld et propose de gérer
+leur état et leurs interfaces graphiques. Avec --services,
 les règles sont ajoutées aux configurations active et permanente,
 sans rechargement global. La valeur none conserve les règles existantes.
 Une confirmation précède chaque plan de modifications. L’installation
@@ -46,30 +44,24 @@ d’une interface graphique ne démarre aucun pare-feu via ce script.
 Lancer avec sudo bash pour appliquer les changements retenus.
 HELP
 }
-ZONE_SET=false
 while (( $# > 0 )); do
   case "$1" in
     --help|-h) usage; exit 0 ;;
     --dry-run) DRY_RUN=true; shift ;;
-    --interactive) INTERACTIVE=true; shift ;;
-    --zone|-z|--services)
+    --zone|--services)
       [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || fatal "Valeur manquante : $1"
       case "$1" in
-        --zone|-z) DEFAULT_ZONE="$2"; ZONE_SET=true ;;
+        --zone) DEFAULT_ZONE="$2" ;;
         --services) [[ -z "$SERVICES_ARG" ]] || fatal '--services répété.'; SERVICES_ARG="$2" ;;
       esac
       shift 2 ;;
     *) fatal "Option inconnue : $1" ;;
   esac
 done
-[[ "$DEFAULT_ZONE" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$ ]] || fatal 'Nom de zone invalide.'
-if [[ -z "$SERVICES_ARG" ]] && [[ -t 0 ]]; then INTERACTIVE=true; fi
-if $INTERACTIVE; then
-  [[ -z "$SERVICES_ARG" ]] && ! $ZONE_SET || fatal 'Le menu interactif s’utilise sans --services ni --zone.'
-else
-  [[ -n "$SERVICES_ARG" ]] || fatal 'Choisir --interactive ou --services ssh,samba, ssh, samba ou none.'
-fi
-if [[ "$SERVICES_ARG" != none ]]; then
+if [[ -z "$SERVICES_ARG" ]]; then
+  [[ -z "$DEFAULT_ZONE" ]] || fatal '--zone exige --services.'
+  [[ -t 0 ]] || fatal 'Ouvrir le menu dans un terminal ou indiquer --services.'
+elif [[ "$SERVICES_ARG" != none ]]; then
   [[ "$SERVICES_ARG" != ,* && "$SERVICES_ARG" != *, && "$SERVICES_ARG" != *,,* ]] || fatal 'Liste de services mal formée.'
   IFS=, read -r -a ALLOWED_SERVICES <<< "$SERVICES_ARG"
   seen=' '
@@ -79,6 +71,9 @@ if [[ "$SERVICES_ARG" != none ]]; then
     seen+="$service "
   done
 fi
+DEFAULT_ZONE=${DEFAULT_ZONE:-home}
+[[ "$DEFAULT_ZONE" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$ ]] || fatal 'Nom de zone invalide.'
+
 has_property() { [[ $'\n'"$1"$'\n' == *$'\n'"$2"$'\n'* ]]; }
 
 unit_value() {
@@ -173,7 +168,6 @@ perform_action() {
     bilan_action "Commande terminée : ${command% }"
     ok "Commande réussie : ${command% }"
   else
-    REPORT+=("Échec : ${command% }. Une modification partielle est possible.")
     fatal "La commande a échoué : ${command% }"
   fi
 }
@@ -220,7 +214,6 @@ backup_before_disable() {
     esac
     if [[ "$TARGET_ACTIVE" == active ]]; then printf 'systemctl start %q\n' "$name.service"; fi
   } > "$undo"
-  REPORT+=("Retour arrière du pare-feu : examiner puis lancer sudo bash \"$undo\".")
   printf '  %b[Sauvegarde]%b %s\n' "$VIOLET" "$RESET" "$SESSION"
 }
 
@@ -278,7 +271,7 @@ run_interactive() {
   fi
   if [[ -n "$target" ]]; then
     if [[ "$target" == firewalld && "$TARGET_ACTIVE" == active ]]; then
-      command -v firewall-cmd >/dev/null || fatal 'Commande absente : firewall-cmd.'
+      command -v firewall-cmd >/dev/null || fatal 'Commande absente : firewall-cmd, fournie par le paquet firewalld. Voir docs/firewalld.md.'
       warn 'L’arrêt de firewalld peut faire perdre ses règles temporaires.'
     fi
     if [[ "$target" == firewalld ]]; then
@@ -291,15 +284,13 @@ run_interactive() {
   fi
   if [[ -z "$target" && -z "$gui" ]]; then
     bilan_ignore 'Aucune modification demandée.'
-  elif $DRY_RUN; then
-    REPORT+=('Actions prévues affichées à l’étape 3. Aucune modification appliquée.')
-  else
-    [[ $EUID -eq 0 ]] || fatal 'Application avec sudo requise ; examinez d’abord --interactive --dry-run.'
+  elif ! $DRY_RUN; then
+    [[ $EUID -eq 0 ]] || fatal 'Application avec sudo requise ; examinez d’abord --dry-run.'
     printf '%bAutoriser les actions annoncées ? [o/N]%b ' "$BOLD" "$RESET"
     IFS= read -r answer || fatal 'Confirmation non reçue.'
     case "$answer" in
       o|O|oui|OUI) ;;
-      *) bilan_annule 'Modifications du pare-feu refusées.'; REPORT+=('Annulé. Aucune modification appliquée.' "$before"); return 0 ;;
+      *) bilan_annule 'Modifications du pare-feu refusées.'; return 0 ;;
     esac
     detect_firewalls
     [[ "$(describe_firewalls)" == "$before" ]] || fatal 'État modifié depuis l’aperçu ; relancez le script.'
@@ -307,7 +298,6 @@ run_interactive() {
       perform_action pacman -S --needed -- "$gui"
       pacman -Q "$gui" >/dev/null || fatal "Installation de $gui non confirmée."
       ok "Interface installée et vérifiée : $gui"
-      REPORT+=("Interface installée et vérifiée : $gui.")
     fi
     if [[ -n "$target" ]]; then
       detect_firewalls
@@ -348,14 +338,14 @@ else
   warn 'Lancer avec sudo bash pour modifier le pare-feu ou installer une interface graphique.'
 fi
 command -v systemctl >/dev/null || fatal 'Commande absente : systemctl.'
-if $INTERACTIVE; then
+if [[ -z "$SERVICES_ARG" ]]; then
   run_interactive
   exit 0
 fi
 
 step 1 'Vérifier les prérequis firewalld'
 command -v firewall-cmd >/dev/null ||
-  fatal 'Commande absente : firewall-cmd. Préparer les paquets avec 05 - package_install.sh --groups securite.'
+  fatal 'Commande absente : firewall-cmd, fournie par le paquet firewalld. Voir docs/firewalld.md.'
 read_units() {
   local fw ufw
   fw=$(systemctl show firewalld.service --property=LoadState,ActiveState) || fatal 'Lecture de firewalld impossible.'
@@ -403,12 +393,13 @@ if $DRY_RUN; then
   for service in ${MISSING_PERMANENT[@]+"${MISSING_PERMANENT[@]}"}; do preview_action firewall-cmd --permanent --zone="$DEFAULT_ZONE" --add-service="$service"; done
   for service in ${MISSING_RUNTIME[@]+"${MISSING_RUNTIME[@]}"}; do preview_action firewall-cmd --zone="$DEFAULT_ZONE" --add-service="$service"; done
   if [[ "$OLD_ZONE" != "$DEFAULT_ZONE" ]]; then preview_action firewall-cmd --set-default-zone="$DEFAULT_ZONE"; fi
-  REPORT+=('Aucune modification appliquée.')
   exit 0
 fi
 [[ $EUID -eq 0 ]] || fatal 'Application avec sudo requise ; examiner d’abord --dry-run.'
 if [[ "$OLD_ZONE" == "$DEFAULT_ZONE" && ${#MISSING_RUNTIME[@]} -eq 0 && ${#MISSING_PERMANENT[@]} -eq 0 ]]; then
-  bilan_ignore 'Zone et règles déjà conformes.'; REPORT+=('Configuration déjà conforme.'); exit 0
+  bilan_conforme
+  bilan_ignore 'Zone et règles déjà conformes.'
+  exit 0
 fi
 step 3 'Sauvegarder et appliquer les règles'
 for cmd in mktemp chmod cp bash; do command -v "$cmd" >/dev/null || fatal "Commande absente : $cmd"; done
@@ -416,7 +407,7 @@ info 'Une modification de zone peut interrompre une connexion. Prévoir un accè
 info 'Sauvegarde sous /var/tmp ; retour arrière ciblé avant toute autre modification volontaire.'
 printf 'Autoriser la sauvegarde puis les modifications annoncées ? [o/N] '
 IFS= read -r answer || fatal 'Confirmation non reçue.'
-case "$answer" in o|O|oui|OUI) ;; *) bilan_annule 'Modifications du pare-feu refusées.'; REPORT+=('Annulé. Aucune modification appliquée.'); exit 0 ;; esac
+case "$answer" in o|O|oui|OUI) ;; *) bilan_annule 'Modifications du pare-feu refusées.'; exit 0 ;; esac
 APPROVED_PLAN="$PLAN"
 read_plan
 [[ "$PLAN" == "$APPROVED_PLAN" ]] || fatal 'État modifié depuis l’aperçu ; relancer.'
@@ -453,7 +444,6 @@ rollback_on_exit() {
     if bash "$UNDO"; then
       BILAN_RETOUR_ARRIERE=true
       bilan_note 'Retour arrière ciblé exécuté après l’échec ; vérifier l’état réseau.'
-      REPORT+=('Retour arrière exécuté après l’échec.')
     else
       REPORT+=("Retour arrière incomplet. Examiner $UNDO depuis un accès local.")
     fi
@@ -465,7 +455,6 @@ trap rollback_on_exit EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 ROLLBACK_READY=true
-REPORT+=("Retour arrière : sudo bash \"$UNDO\"")
 info "Sauvegarde : $SESSION ; retour arrière : sudo bash \"$UNDO\""
 for service in ${MISSING_PERMANENT[@]+"${MISSING_PERMANENT[@]}"}; do
   perform_action firewall-cmd --permanent --zone="$DEFAULT_ZONE" --add-service="$service"
@@ -479,4 +468,4 @@ read_plan
 [[ "$OLD_ZONE" == "$DEFAULT_ZONE" && ${#MISSING_RUNTIME[@]} -eq 0 && ${#MISSING_PERMANENT[@]} -eq 0 ]] || fatal 'Configuration finale non confirmée.'
 ROLLBACK_READY=false
 bilan_note "Accès SSH/Samba à valider sur le réseau pour la zone $DEFAULT_ZONE."
-REPORT+=("Zone $DEFAULT_ZONE et règles sélectionnées vérifiées. Accès SSH/Samba à valider sur le réseau.")
+REPORT+=("Zone $DEFAULT_ZONE et règles sélectionnées vérifiées.")

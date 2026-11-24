@@ -2,13 +2,12 @@
 
 [Accueil](../README.md) · [Utiliser les scripts](utilisation.md) · [Tous les guides](../README.md#choisir-un-script)
 
-Le script `05 - package_install.sh` propose 41 paquets par défaut et installe la
-sélection dans une seule transaction `pacman -Syu --needed dépôt/paquet…`, après
-confirmation.
+Le script `05 - package_install.sh` propose les paquets essentiels par défaut.
+Le catalogue reste accessible par groupes ou en entier.
+Après confirmation, le script installe la sélection dans une seule transaction
+`pacman -Syu --needed dépôt/paquet…`.
 Tealdeer et les autres modules du terminal sont proposés séparément par le
 [script 04](zsh.md).
-Les autres choix actifs et les exemples commentés sont conservés.
-Distrobox et Podman sont maintenant actifs dans la liste pour préparer BoxBuddy.
 
 ## Examiner puis exécuter
 
@@ -46,11 +45,17 @@ de virtualisation et configure libvirt si tu veux utiliser Virt-Manager.
 
 ## Choisir les groupes
 
-Sans `--groups`, la sélection complète existante est conservée. Les groupes se
-combinent avec `--list` et `--dry-run`, sans appel système pour la liste :
+Dans le menu, Entrée choisit les essentiels, soit les groupes de polices,
+de terminaux et d’utilitaires du terminal. Les autres choix permettent de
+saisir des groupes ou de prendre le catalogue complet. `q` quitte le menu.
+
+`--help` affiche les groupes disponibles et ceux du profil essentiel.
+`--list` affiche le catalogue complet tel qu’il est défini dans le script.
+Combiner `--groups` avec `--list` pour afficher les paquets choisis ou avec
+`--dry-run` pour examiner le plan. Sans terminal ni groupe explicite,
+`--dry-run` examine les essentiels.
 
 ```bash
-bash "05 - package_install.sh" --list-groups
 bash "05 - package_install.sh" --groups virtualisation,terminal --list
 bash "05 - package_install.sh" --groups virtualisation,terminal --dry-run
 ```
@@ -65,32 +70,12 @@ d’être installés. En cas de refus ou d’échec, regarder le premier diagnos
 et l’emplacement de l’inventaire s’il a été créé. Un dépôt tiers actif,
 dont [master-archrepo](master-archrepo.md), arrête le contrôle de provenance.
 
-### Catalogue actuel
-
-| Groupe | Paquets |
-| --- | --- |
-| `utilitaires` | `flameshot`, `gnome-disk-utility`, `gparted`, `qbittorrent`, `transmission-qt`, `stow` |
-| `polices` | `ttf-jetbrains-mono-nerd`, `ttf-meslo-nerd`, `ttf-firacode-nerd` |
-| `langues` | `firefox-i18n-fr`, `thunderbird-i18n-fr` |
-| `securite` | `bitwarden`, `proton-pass`, `ufw`, `gufw` |
-| `internet` | `firefox`, `thunderbird`, `brave-origin-bin`, `floorp-bin` |
-| `multimedia` | `strawberry`, `mpv` |
-| `communication` | `vesktop-bin` |
-| `bureautique` | `libreoffice-fresh`, `libreoffice-fresh-fr`, `obsidian` |
-| `virtualisation` | `distrobox`, `podman` |
-| `terminaux` | `kitty` |
-| `terminal` | `fastfetch`, `git`, `curl`, `wget`, `starship` |
-| `developpement` | `micro`, `code`, `github-desktop`, `meld`, `zed` |
-| `ia` | `openai-codex`, `claude-desktop`, `claude-code` |
-| `kde` | Aucun paquet actif ; exemples commentés conservés dans le script. |
-
 ## Provenance et contrôle sur la cible
 
 Le script vérifie les bases locales et les dépôts configurés avant toute
 installation. Aucun recours automatique à l'AUR ni téléchargement externe.
 Consulter le [catalogue CachyOS](https://packages.cachyos.org/) pour la disponibilité
-courante. Les 41 noms actifs sont conservés tels que choisis dans le dépôt ; cette
-mise à jour ne prétend pas avoir revérifié individuellement leur disponibilité.
+courante.
 Une entrée absente reste bloquante, sans substitution silencieuse.
 Un groupe entièrement commenté produit une liste vide avec `--list` ; son
 installation seule est refusée avant toute commande système.
@@ -194,6 +179,6 @@ de dépôts tiers, les paquets absents, la simulation sans écriture et les éch
 Ils ne téléchargent ni n'installent rien. Aucune transaction native sous CachyOS
 n'a été exécutée dans le cadre de la préparation de ces changements.
 
-Les tests attendent les noms explicites de la sélection actuelle. Ils vérifient
-également les groupes, leur union, les erreurs de sélection et la limitation des
-cibles de transaction. Une liste attendue doit être revue lors d'un ajout volontaire.
+Le contrôle statique vérifie que le catalogue correspond aux listes des groupes
+affichés par le script et qu'il ne contient pas de doublons. Les tests simulés
+vérifient aussi les erreurs de sélection et les cibles de la transaction.

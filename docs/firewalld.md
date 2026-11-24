@@ -5,7 +5,7 @@
 ## Menu interactif
 
 ```bash
-bash "02 - firewalld_settings.sh" --interactive --dry-run
+bash "02 - firewalld_settings.sh" --dry-run
 ```
 
 Le menu s’ouvre aussi sans argument depuis un terminal. Il affiche l’état des

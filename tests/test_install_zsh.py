@@ -134,9 +134,18 @@ class InstallZshTests(unittest.TestCase):
         self.scenario = {}
         (self.root / 'scenario.json').write_text('{}')
 
-    def run_script(self, *args, answers='o\nn\nn\n'):
+    def run_script(self, *args, answers='o\nn\nn\n', terminal=False):
         (self.root / 'scenario.json').write_text(json.dumps(self.scenario))
-        return subprocess.run(['/bin/bash', str(self.script), *args], env=self.env, input=answers, text=True, capture_output=True)
+        command = ['/bin/bash', str(self.script), *args]
+        if not terminal:
+            return subprocess.run(command, env=self.env, input=answers, text=True, capture_output=True)
+        master, slave = os.openpty()
+        try:
+            os.write(master, answers.encode())
+            return subprocess.run(command, env=self.env, stdin=slave, text=True, capture_output=True, timeout=20)
+        finally:
+            os.close(slave)
+            os.close(master)
 
     def calls(self):
         file = self.root / 'calls'
@@ -173,8 +182,9 @@ class InstallZshTests(unittest.TestCase):
         # Un voisin invalide et non exécutable n’est pas un prérequis du terminal.
         (self.repo / 'autre-script.sh').write_text('if syntaxe invalide')
         self.scenario['missing'] = ['kitty']
-        result = self.run_script('--dry-run', answers='')
+        result = self.run_script('--dry-run', terminal=True, answers='\n\n2\n\n')
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Variante Starship : macchiato', result.stderr)
         self.assertNotIn('Scripts Bash du dépôt', result.stderr)
         self.assertNotIn('autre-script.sh', result.stderr)
         self.assertFalse(self.backups.exists())
@@ -406,7 +416,8 @@ class InstallZshTests(unittest.TestCase):
         self.assertEqual((self.root / 'shell').read_text(), '/bin/bash')
 
     def test_generated_settings_activate_aliases_and_selected_fzf_source(self):
-        self.assertEqual(self.run_script('--replace-commands').returncode, 0)
+        result = self.run_script(terminal=True, answers='\n\n\n2\no\nn\nn\n')
+        self.assertEqual(result.returncode, 0, result.stderr)
         result = subprocess.run([REAL_ZSH, '-dfi', '-c',
             'source "$HOME/.zshrc"; [[ "$FZF_TAB_READY" == 1 ]] || exit 21; '
             '[[ "${aliases[cat]}" == "bat --paging=never" ]] || exit 22; '
@@ -417,7 +428,7 @@ class InstallZshTests(unittest.TestCase):
     def test_no_theme_and_custom_paths_in_copy_mode(self):
         self.env['XDG_CONFIG_HOME'] = str(self.home / 'configuration')
         self.env['ZDOTDIR'] = str(self.home / 'zsh-home')
-        result = self.run_script('--only', 'zsh,starship', '--no-theme', answers='o\nn\n')
+        result = self.run_script(terminal=True, answers='\nzsh,starship\n0\n\no\nn\n')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue((self.home / 'zsh-home/.zshrc').is_file())
         self.assertTrue((self.home / 'configuration/cachyos-zsh/aliases.zsh').is_file())

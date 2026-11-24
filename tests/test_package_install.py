@@ -96,7 +96,7 @@ class PackageInstallTests(unittest.TestCase):
             ['/bin/bash', str(SCRIPT), '--list'], text=True).splitlines()
         (self.root / 'packages.json').write_text(json.dumps(self.packages))
 
-    def run_script(self, *args, terminal=False, answer='o\n', original=False):
+    def run_script(self, *args, terminal=False, selection='\n', answer='o\n', original=False):
         (self.root / 'config.json').write_text(json.dumps(self.config))
         cmd = ['/bin/bash', str(SCRIPT if original else self.copy), *args]
         if not terminal:
@@ -105,6 +105,7 @@ class PackageInstallTests(unittest.TestCase):
         proc = subprocess.Popen(cmd, env=self.env, stdin=slave, stdout=slave, stderr=slave)
         os.close(slave)
         output = b''
+        selection_sent = False
         sent = False
         deadline = time.monotonic() + 15
         try:
@@ -123,6 +124,9 @@ class PackageInstallTests(unittest.TestCase):
                     if not chunk:
                         break
                     output += chunk
+                    if 'Sélection [Entrée ='.encode() in output and not selection_sent:
+                        os.write(master, selection.encode())
+                        selection_sent = True
                     if b'[o/N]' in output and not sent:
                         os.write(master, answer.encode())
                         sent = True
@@ -149,17 +153,6 @@ class PackageInstallTests(unittest.TestCase):
         self.assertEqual(self.run_script('--help', original=True).returncode, 0)
         self.assertEqual(self.calls(), [])
 
-    def test_exact_active_catalogue(self):
-        expected = """flameshot gnome-disk-utility gparted qbittorrent transmission-qt stow
-        ttf-jetbrains-mono-nerd ttf-meslo-nerd ttf-firacode-nerd firefox-i18n-fr
-        thunderbird-i18n-fr bitwarden proton-pass ufw gufw firefox thunderbird
-        brave-origin-bin floorp-bin strawberry mpv vesktop-bin libreoffice-fresh
-        libreoffice-fresh-fr obsidian distrobox podman kitty fastfetch git curl
-        wget starship micro code github-desktop meld zed openai-codex
-        claude-desktop claude-code""".split()
-        self.assertEqual(self.packages, expected)
-        self.assertEqual(len(set(self.packages)), len(self.packages))
-
     def test_empty_group_lists_nothing_and_does_not_start_a_transaction(self):
         result = self.run_script('--groups', 'kde', '--list', original=True)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -167,23 +160,6 @@ class PackageInstallTests(unittest.TestCase):
         result = self.run_script('--groups', 'kde')
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertIn('Aucun paquet actif', result.stderr)
-        self.assertEqual(self.calls(), [])
-
-    def test_groups_are_explicit_and_default_list_is_their_union(self):
-        groups = self.run_script('--list-groups', original=True).stdout.splitlines()
-        expected_groups = ['utilitaires', 'polices', 'langues', 'securite', 'internet',
-                           'multimedia', 'communication', 'bureautique', 'virtualisation',
-                           'terminaux', 'terminal', 'developpement', 'ia', 'kde']
-        self.assertEqual(groups, expected_groups)
-        combined = []
-        for group in groups:
-            result = self.run_script('--groups', group, '--list', original=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            combined.extend(result.stdout.splitlines())
-        self.assertEqual(combined, self.packages)
-        result = self.run_script('--groups', 'virtualisation,terminal', '--list', original=True)
-        self.assertEqual(result.stdout.splitlines(), ['distrobox', 'podman', 'fastfetch', 'git',
-                         'curl', 'wget', 'starship'])
         self.assertEqual(self.calls(), [])
 
     def test_group_selection_limits_transaction_targets(self):
@@ -238,7 +214,7 @@ class PackageInstallTests(unittest.TestCase):
 
     def test_missing_package_is_blocking_even_if_other_packages_exist(self):
         self.config['missing'] = 'brave-origin-bin'
-        result = self.run_script('--dry-run')
+        result = self.run_script('--dry-run', '--groups', 'internet')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('brave-origin-bin', result.stderr)
         self.assert_no_mutation()
@@ -254,6 +230,28 @@ class PackageInstallTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('terminal interactif', result.stderr)
         self.assert_no_mutation()
+
+    def test_menu_defaults_to_essential_groups(self):
+        result = self.run_script('--dry-run', terminal=True)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn('Groupes sélectionnés : polices terminaux terminal', result.stdout)
+        self.assertIn('cachyos-extra-v3/git', result.stdout)
+        self.assertNotIn('cachyos-extra-v3/distrobox', result.stdout)
+        self.assert_no_mutation()
+
+    def test_menu_accepts_custom_groups(self):
+        result = self.run_script('--dry-run', terminal=True, selection='2\nvirtualisation\n')
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn('Groupes sélectionnés : virtualisation', result.stdout)
+        self.assertIn('cachyos-extra-v3/distrobox', result.stdout)
+        self.assertNotIn('cachyos-extra-v3/git', result.stdout)
+        self.assert_no_mutation()
+
+    def test_menu_can_cancel_before_any_system_call(self):
+        result = self.run_script(terminal=True, selection='q\n')
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn('Annulé', result.stdout)
+        self.assertEqual(self.calls(), [])
 
     def test_confirmation_declined_writes_nothing(self):
         result = self.run_script(terminal=True, answer='n\n')
@@ -290,7 +288,7 @@ class PackageInstallTests(unittest.TestCase):
             self.assertFalse((self.root / 'attempted').exists())
 
     def test_one_pinned_transaction_and_honest_summary(self):
-        result = self.run_script(terminal=True)
+        result = self.run_script(terminal=True, selection='3\n')
         self.assertEqual(result.returncode, 0, result.stdout)
         transactions = [c for c in self.calls() if c[:2] == ['pacman', '-Syu']]
         self.assertEqual(len(transactions), 1)
@@ -308,7 +306,7 @@ class PackageInstallTests(unittest.TestCase):
         self.config['transaction_failure'] = True
         result = self.run_script(terminal=True)
         self.assertEqual(result.returncode, 42, result.stdout)
-        self.assertNotIn('Transaction terminée', result.stdout)
+        self.assertNotIn('Totaux', result.stdout)
         snapshot, = self.root.glob('snapshot-*')
         self.assertTrue((snapshot / 'paquets-apres.txt').exists())
 
@@ -317,7 +315,7 @@ class PackageInstallTests(unittest.TestCase):
         result = self.run_script(terminal=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('kitty', result.stdout)
-        self.assertNotIn('Transaction terminée', result.stdout)
+        self.assertNotIn('Totaux', result.stdout)
 
 
 if __name__ == '__main__':

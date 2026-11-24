@@ -15,7 +15,7 @@ if (( $+commands[clear] )); then alias c='clear'; fi
 if (( $+commands[eza] )); then
     alias ll='eza -lh --icons --git'
     alias la='eza -lah --icons --git'
-    alias lt='eza --tree --icons'
+    alias lt='eza --tree --level=2 --icons'
     alias l='eza -1 --icons'
 fi
 if (( $+commands[bat] )); then

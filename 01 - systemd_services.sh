@@ -31,8 +31,8 @@ show_state() {
 # ─── Dry-run et arguments ────────────────────────────────────────────────────
 usage() {
   printf 'Usage : bash "%s" [--dry-run | --help]\n' "${0##*/}"
-  printf '%s\n' 'Active et démarre Bluetooth, le serveur SSH, fstrim.timer et paccache.timer.' \
-    'Lancer avec sudo bash pour appliquer les changements.' \
+  printf '%s\n' 'Prépare Bluetooth, fstrim.timer, paccache.timer et SSH sur demande.' \
+    'Lancer avec sudo bash pour examiner puis confirmer les changements.' \
     '  --dry-run  Inspecte et décrit les actions sans modification.' \
     '  --help     Affiche cette aide.'
 }
@@ -55,7 +55,6 @@ if $DRY_RUN; then
   dry 'Aucun sudo nécessaire et aucune modification appliquée.'
 else
   detail 'Privilèges' 'Lancer avec sudo bash pour modifier les services systemd.'
-  detail 'Mode' 'Application des changements'
 fi
 step 1 'Vérifier les prérequis'
 if [[ $EUID -ne 0 ]] && ! $DRY_RUN; then
@@ -76,12 +75,28 @@ fi
 info 'systemctl et pacman disponibles, gestionnaire systemd joignable.'
 
 # ─── Listes ──────────────────────────────────────────────────────────────────
-SERVICES=(bluetooth.service sshd.service)
-TIMERS=(fstrim.timer paccache.timer)
-UNITS=("${SERVICES[@]}" "${TIMERS[@]}")
+UNITS=(bluetooth.service fstrim.timer paccache.timer)
+WITH_SSH=false
+if ! $DRY_RUN || [[ -t 0 ]]; then
+  warn 'Activer SSH peut rendre la machine accessible sur le réseau selon sa configuration et le pare-feu.'
+  printf 'Inclure le serveur SSH dans le plan ? [o/N] '
+  if ! IFS= read -r answer; then
+    bilan_annule 'Saisie interrompue avant le plan.'
+    exit 0
+  fi
+  case "$answer" in
+    o|O|oui|OUI) WITH_SSH=true; UNITS+=(sshd.service) ;;
+  esac
+fi
+if ! $WITH_SSH; then
+  detail 'SSH' 'Conserver l’état et les réglages actuels.'
+  bilan_ignore 'SSH : laissé tel quel.'
+fi
 FAILURES=0
 UNDO_FILE=''
-BILAN_CHANGED_UNITS=()
+PLAN_UNITS=()
+PLAN_ENABLED=()
+PLAN_ACTIVE=()
 
 # ─── Dépendances requises ────────────────────────────────────────────────────
 # Vérifier le paquet et l'unité ; bluetoothctl (bluez-utils) n'est pas requis
@@ -96,7 +111,7 @@ check_deps() {
     *) error "Unité sans dépendance déclarée : $unit"; return 1 ;;
   esac
   if ! pacman -Q "$pkg" >/dev/null 2>&1; then
-    error "$unit — paquet requis absent : $pkg. Installez-le avant de relancer."
+    error "$unit — paquet requis absent : $pkg. Vérifiez sa disponibilité avec pacman -Si $pkg. Voir docs/systemd-services.md."
     return 1
   fi
   if [[ -n "$cmd" ]] && ! command -v "$cmd" >/dev/null 2>&1; then
@@ -166,32 +181,40 @@ record_undo() {
   } >> "$UNDO_FILE"
 }
 
-# ─── Fonction d'activation ───────────────────────────────────────────────────
-enable_unit() {
-  local unit="$1" initial_enabled initial_active
+# ─── Plan et activation ──────────────────────────────────────────────────────
+plan_unit() {
+  local unit="$1"
   check_deps "$unit" || return 1
   read_state "$unit" || return 1
-  initial_enabled="$ENABLED_STATE"; initial_active="$ACTIVE_STATE"
-  show_state 'Avant' "$initial_enabled" "$initial_active"
-  if [[ "$initial_enabled" == enabled && "$initial_active" == active ]]; then
+  show_state 'Avant' "$ENABLED_STATE" "$ACTIVE_STATE"
+  if [[ "$ENABLED_STATE" == enabled && "$ACTIVE_STATE" == active ]]; then
     bilan_ignore "$unit : déjà actif et activé."
-    info "$unit — déjà activé durablement et actif, aucune action."
+    info "$unit — déjà activé durablement et actif."
     return 0
   fi
-  if $DRY_RUN; then
-    if [[ "$initial_enabled" != enabled ]]; then
-      dry "$unit — serait activé durablement et démarré."
-    else
-      dry "$unit — serait démarré (déjà activé durablement)."
-    fi
-    return 0
+  if [[ "$ENABLED_STATE" == enabled ]]; then
+    detail 'Prévu' "$unit — serait démarré (déjà activé durablement)."
+  else
+    detail 'Prévu' "$unit — serait activé durablement et démarré."
+  fi
+  PLAN_UNITS+=("$unit")
+  PLAN_ENABLED+=("$ENABLED_STATE")
+  PLAN_ACTIVE+=("$ACTIVE_STATE")
+}
+
+enable_unit() {
+  local unit="$1" initial_enabled="$2" initial_active="$3"
+  check_deps "$unit" || return 1
+  read_state "$unit" || return 1
+  if [[ "$ENABLED_STATE" != "$initial_enabled" || "$ACTIVE_STATE" != "$initial_active" ]]; then
+    error "$unit — état modifié depuis le plan, relancez le script."
+    return 1
   fi
   if ! record_undo "$unit" "$initial_enabled" "$initial_active"; then
     error "$unit — impossible d'enregistrer le retour arrière ; aucune action sur cette unité."
     return 1
   fi
   bilan_debut
-  BILAN_CHANGED_UNITS+=("$unit")
   if [[ "$initial_enabled" == enabled ]]; then
     detail 'Action' "Démarrer $unit."
     if ! systemctl start "$unit"; then
@@ -207,12 +230,7 @@ enable_unit() {
   fi
 }
 
-# ─── Activation des services et timers ────────────────────────────────────────
-if $DRY_RUN; then
-  step 2 'Inspecter les unités et présenter les actions prévues'
-else
-  step 2 'Inspecter et configurer les unités'
-fi
+step 2 'Inspecter les unités et présenter le plan'
 warn 'Les timers peuvent déclencher leurs tâches dès leur démarrage selon leur configuration.'
 unit_number=0
 for unit in "${UNITS[@]}"; do
@@ -225,17 +243,35 @@ for unit in "${UNITS[@]}"; do
     *) description='Unité systemd' ;;
   esac
   printf '\n%b[%s/%s] %s%b · %s\n' "$BOLD" "$unit_number" "${#UNITS[@]}" "$description" "$RESET" "$unit"
-  if ! enable_unit "$unit"; then
+  if ! plan_unit "$unit"; then
     FAILURES=$((FAILURES + 1))
   fi
 done
 
-# ─── Résumé ──────────────────────────────────────────────────────────────────
 if $DRY_RUN; then
   step 3 'Bilan de la simulation'
-else
-  step 3 'Vérifier le statut final'
-  for unit in "${UNITS[@]}"; do
+elif [[ -n ${PLAN_UNITS[0]:-} ]]; then
+  if (( FAILURES > 0 )); then
+    warn 'Le plan ne couvre que les unités dont les contrôles ont réussi.'
+  fi
+  printf 'Appliquer les actions annoncées ? [o/N] '
+  if ! IFS= read -r answer; then answer=''; fi
+  case "$answer" in
+    o|O|oui|OUI) ;;
+    *)
+      bilan_annule 'Application refusée avant toute modification.'
+      if (( FAILURES > 0 )); then exit 1; fi
+      exit 0
+      ;;
+  esac
+
+  step 3 'Appliquer et vérifier les unités du plan'
+  for index in "${!PLAN_UNITS[@]}"; do
+    unit="${PLAN_UNITS[index]}"
+    if ! enable_unit "$unit" "${PLAN_ENABLED[index]}" "${PLAN_ACTIVE[index]}"; then
+      FAILURES=$((FAILURES + 1))
+      continue
+    fi
     if ! read_state "$unit"; then
       FAILURES=$((FAILURES + 1))
       continue
@@ -245,24 +281,13 @@ else
       error "$unit — objectif non atteint : activation=$ENABLED_STATE, état=$ACTIVE_STATE."
       FAILURES=$((FAILURES + 1))
     else
-      case " ${BILAN_CHANGED_UNITS[*]:-} " in
-        *" $unit "*) bilan_action "$unit : actif et activé, état final vérifié." ;;
-      esac
+      bilan_action "$unit : actif et activé, état final vérifié."
     fi
   done
+elif (( FAILURES == 0 )); then
+  bilan_conforme
 fi
-if [[ -n "$UNDO_FILE" ]]; then
-  printf '\n'
-  backup "Examinez $UNDO_FILE avant tout retour arrière."
-  detail 'Commande' "sudo bash $UNDO_FILE"
+if ! $DRY_RUN && $WITH_SSH; then
+  bilan_note 'Vérifier l’accès SSH depuis un autre poste.'
 fi
-if (( FAILURES > 0 )); then
-  error 'Terminé avec des erreurs : consultez les détails ci-dessus. Les unités indépendantes ont été traitées.'
-  exit 1
-fi
-if $DRY_RUN; then
-  dry 'Dry-run terminé — aucune modification effectuée.'
-else
-  bilan_note 'Accès SSH à vérifier depuis un autre poste si ce service est utilisé.'
-  info 'Terminé — toutes les unités sont activées durablement et actives.'
-fi
+(( FAILURES == 0 ))

@@ -10,7 +10,20 @@ la machine : les utiliser seulement une fois le plan examiné et l'action voulue
 Conserver le dossier `scripts/` avec les scripts numérotés : ils utilisent
 maintenant son module commun `bilan.sh` pour leur affichage final.
 
-## Comprendre les modes
+## Commandes à retenir
+
+Ouvrir le terminal à la racine du dépôt et lancer le script voulu. Les menus
+du pare-feu, de Zsh, de Flatpak et des disques s’ouvrent directement. Ajouter
+`--dry-run` pour examiner les choix avant d’appliquer. Par exemple :
+
+```bash
+bash "04 - install_zsh.sh" --dry-run
+bash "04 - install_zsh.sh"
+```
+
+Les commandes d’application qui demandent `sudo` sont indiquées ci-dessous.
+La purge et l’installation AUR ont une option explicite pour passer de
+l’aperçu à l’application.
 
 | Mode | Usage |
 | --- | --- |
@@ -46,12 +59,16 @@ le script peut les identifier.
   Suivi / sauvegardes : /chemin/du/dossier
 ```
 
-Les résultats distinguent **réussi**, **partiellement réussi**, **annulé**,
+Les résultats distinguent **réussi**, **déjà conforme**, **partiellement réussi**, **annulé**,
 **échoué**, **interrompu**, **simulation terminée** et, si nécessaire,
 **terminé avec avertissements**. Une annulation peut survenir après certaines
 actions ; celles-ci restent mentionnées. Une action dont seule la tentative
 est connue n'est pas comptée comme réussie. « Aucune modification confirmée »
 ne signifie donc pas qu'aucun changement n'a pu avoir lieu après un échec.
+
+**Déjà conforme** indique que l'état demandé a été vérifié et qu'aucune
+modification de la cible n'était nécessaire. Ce résultat concerne les services
+systemd (01), les règles firewalld (02) et la configuration Pacman (03).
 
 Les longues listes affichent leur total et leurs huit premiers éléments ; les
 autres détails sont dans les étapes précédentes du terminal. Les erreurs ne
@@ -59,7 +76,8 @@ sont pas abrégées. Après le retour arrière automatique du mode règles du
 pare-feu, les actions exécutées auparavant sont identifiées comme telles,
 sans être présentées comme des changements encore appliqués.
 
-Le bilan s'affiche après le nettoyage ou la tentative de retour arrière prévue
+Quand le script compte les applications, les paquets ou les volumes, la ligne
+**Totaux** figure dans le même bilan. Le bilan s'affiche après le nettoyage ou la tentative de retour arrière prévue
 par chaque script. Il ne crée aucun rapport supplémentaire sur disque et ne
 change pas les codes de sortie existants. Les sauvegardes et inventaires propres
 aux scripts sont conservés comme auparavant. Leurs chemins ne sont affichés que
@@ -67,15 +85,14 @@ lorsqu'ils sont connus ; un inventaire ne remplace pas une sauvegarde complète.
 
 Le bilan utilise la sortie d'erreur (`stderr`) pour préserver les listes et les
 aperçus de configuration sur la sortie standard. Les aides et les listes seules
-ne reçoivent pas de bilan supplémentaire lorsqu'elles réussissent. Le mode `--silent` du script
-03 conserve son comportement silencieux en cas de succès. Une erreur précoce
+ne reçoivent pas de bilan supplémentaire lorsqu'elles réussissent. Une erreur précoce
 affiche les informations disponibles ; `SIGKILL`, une coupure de courant ou une
 impossibilité d'écrire dans le terminal ne permettent pas de garantir un bilan.
 
 ## 01 · Services systemd
 
-Préparer les paquets `bluez`, `openssh`, `util-linux` et `pacman-contrib`.
-Le script n'installe pas ces prérequis.
+Préparer `bluez`, `util-linux` et `pacman-contrib`. Ajouter `openssh` si
+le serveur SSH doit faire partie du plan.
 
 ```bash
 # Aperçu sans sudo.
@@ -88,10 +105,10 @@ Application volontaire :
 sudo bash "01 - systemd_services.sh"
 ```
 
-**Cette commande ne redemande pas confirmation.** Elle démarre et active
-Bluetooth, SSH et les timers TRIM/nettoyage du cache. SSH peut exposer un accès
-réseau selon sa configuration et le pare-feu. Les timers peuvent agir dès leur
-activation. Le chemin du fichier de retour arrière est affiché.
+Entrée au choix SSH conserve son état actuel. Le script affiche ensuite
+les actions prévues pour Bluetooth, les timers et SSH s’il est sélectionné.
+Confirmer le plan pour l’appliquer. Les timers peuvent agir dès leur activation.
+Le script affiche le chemin du fichier de retour arrière lorsqu’il en crée un.
 [Détails et contrôles après application](systemd-services.md).
 
 ## 02 · Pare-feu
@@ -100,7 +117,7 @@ Depuis un accès local, choisir entre le menu UFW/firewalld et les règles d'un
 firewalld déjà installé et actif :
 
 ```bash
-bash "02 - firewalld_settings.sh" --interactive --dry-run
+bash "02 - firewalld_settings.sh" --dry-run
 bash "02 - firewalld_settings.sh" --dry-run --zone home --services ssh,samba
 ```
 
@@ -136,7 +153,7 @@ Lancer depuis le compte utilisateur normal. Choisir les modules, le mode copie
 ou Stow, les alias et la palette Starship dans le menu :
 
 ```bash
-bash "04 - install_zsh.sh" --interactive --dry-run
+bash "04 - install_zsh.sh" --dry-run
 # Exemple de sélection précise :
 bash "04 - install_zsh.sh" --dry-run --mode stow --only zsh,starship,kitty,foot
 ```
@@ -150,7 +167,7 @@ pas des modules de cet installateur. [Options et restauration](zsh.md).
 ## 05 · Paquets natifs
 
 ```bash
-bash "05 - package_install.sh" --list-groups
+bash "05 - package_install.sh" --help
 bash "05 - package_install.sh" --list
 bash "05 - package_install.sh" --groups virtualisation,terminal --dry-run
 ```
@@ -161,12 +178,14 @@ Après examen, appliquer cette sélection depuis le compte normal :
 bash "05 - package_install.sh" --groups virtualisation,terminal
 ```
 
-Omettre `--groups` sélectionne les 41 paquets. **Même avec un seul groupe,
-Pacman met à jour l'ensemble du système** après confirmation. Les dépôts tiers
+Sans `--groups`, le menu propose les essentiels, le choix des groupes
+ou le catalogue complet. Entrée sélectionne les essentiels (polices Nerd
+Fonts, Kitty et outils du terminal). **Même avec un seul groupe, Pacman met à jour
+l'ensemble du système** après confirmation. Les dépôts tiers
 et de test sont refusés. Une base locale absente ou ancienne peut empêcher
 l'aperçu ; préparer séparément la mise à jour, sans `pacman -Sy` isolé.
 Les inventaires avant/après ne constituent pas une sauvegarde complète.
-[Catalogue exact des 14 groupes et limites](package-install.md).
+[Choisir et consulter les groupes](package-install.md#choisir-les-groupes).
 
 ## 06 · Applications Flatpak
 

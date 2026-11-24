@@ -8,7 +8,6 @@ bilan_init "06 · Applications Flatpak" "$@"
 export LC_ALL=C
 DRY_RUN=false
 SHOW_LIST=false
-CLEANUP=false
 SELECTION=''
 SNAPSHOT=''
 HOST_CHANGED=false
@@ -82,18 +81,15 @@ Le script utilise sudo seulement si des prérequis natifs doivent être install�
 
   --help, -h  Afficher l'aide sans Flatpak ni privilèges.
   --list      Afficher les identifiants et descriptions sans Flatpak.
-  --all       Choisir toutes les applications du catalogue.
   --only LISTE Choisir des numéros ou identifiants exacts séparés par des virgules.
+              Utiliser tout pour sélectionner le catalogue complet.
   --dry-run   Examiner seulement l'état local : aucun ajout de dépôt,
               téléchargement, inventaire écrit ou nettoyage.
-  --cleanup   Proposer séparément le nettoyage des runtimes personnels
-              inutilisés après une installation sans erreur.
 
 Dans un terminal, choisir les applications ou tout le catalogue au début.
 Un seul accord couvre l'installation des prérequis natifs manquants et la
 mise à jour complète éventuelle, puis Flathub, les applications sélectionnées
 et leurs runtimes. Pacman et Flatpak utilisent ensuite leurs réponses par défaut.
-Le nettoyage facultatif reste soumis à un accord séparé.
 Les installations système et les autres applications ne sont pas mises à jour.
 L'inventaire ne sauvegarde pas les données personnelles ni les anciens runtimes.
 EOF
@@ -102,16 +98,12 @@ while (( $# > 0 )); do
     case "$1" in
         --help|-h) show_help; exit 0 ;;
         --list) SHOW_LIST=true ;;
-        --all)
-            [[ -z "$SELECTION" ]] || fatal 'Choisir --all ou --only, une seule fois.' 2
-            SELECTION=tout ;;
         --only)
             [[ -z "$SELECTION" && $# -ge 2 && -n "$2" && "$2" != -* ]] ||
-                fatal 'Indiquer une liste après --only, sans répéter --only ou --all.' 2
+                fatal 'Indiquer une seule liste après --only.' 2
             SELECTION="$2"
             shift ;;
         --dry-run) DRY_RUN=true ;;
-        --cleanup) CLEANUP=true ;;
         *) fatal "Option inconnue : $1. Utiliser --help." 2 ;;
     esac
     shift
@@ -156,11 +148,8 @@ selected() {
 on_exit() {
     local status=$1
     if (( status != 0 )); then
-        printf 'Opération interrompue ou en échec (code %s).\n' "$status" >&2
-        if [[ -n "$SNAPSHOT" ]]; then
-            printf 'Inventaire conservé : %s. Des changements ont pu être effectués ; aucun retour arrière automatique.\n' "$SNAPSHOT" >&2
-        fi
-        if $HOST_CHANGED; then warn 'La transaction Pacman a pu modifier l’hôte. Consulter /var/log/pacman.log.'; fi
+        if [[ -n "$SNAPSHOT" ]]; then bilan_note 'Aucun retour arrière automatique.'; fi
+        if $HOST_CHANGED; then bilan_note 'Vérifier les changements Pacman dans /var/log/pacman.log.'; fi
     fi
     bilan_print "$status"
 }
@@ -336,10 +325,8 @@ fi
 info 'Flatpak installe automatiquement les runtimes et extensions nécessaires.'
 info 'Une application présente uniquement au niveau système aura une copie personnelle.'
 if $DRY_RUN; then
-    step 3 'Bilan de la simulation'
-    status_line "$CYAN" 'Simulation' 'Simulation locale terminée : aucun fichier écrit et aucune installation effectuée.'
+    step 3 'Limites de l’aperçu'
     info 'La disponibilité distante et les nouvelles versions seront contrôlées après accord, en exécution réelle.'
-    if $CLEANUP; then info 'Nettoyage : serait proposé séparément, aucune suppression simulée comme réussie.'; fi
     exit 0
 fi
 
@@ -350,7 +337,7 @@ if (( ${#HOST_TARGETS[@]} > 0 )); then
 fi
 warn 'L’accord couvre l’ajout éventuel de Flathub, les applications sélectionnées, leurs runtimes et extensions.'
 info 'Les applications déjà présentes pourront être mises à jour. Les questions d’installation recevront leurs réponses par défaut.'
-if ! confirm 'Autoriser toute cette installation ?'; then bilan_annule 'Installation refusée avant application.'; info 'Installation annulée.'; exit 0; fi
+if ! confirm 'Autoriser toute cette installation ?'; then bilan_annule 'Installation refusée avant application.'; exit 0; fi
 
 APPROVED_HOST=$(printf '%s\n' ${HOST_TARGETS[@]+"${HOST_TARGETS[@]}"} "$HOST_REPOS")
 read_host_plan
@@ -475,35 +462,18 @@ for ref in ${verified_refs[@]+"${verified_refs[@]}"}; do
         unchanged_count=$((unchanged_count + 1))
     fi
 done
-if $CLEANUP && (( failed_count == 0 )); then
-    if confirm 'Proposer à Flatpak de supprimer les runtimes personnels inutilisés ?'; then
-        bilan_debut
-        if ! flatpak_progress uninstall --unused; then
-            error 'Nettoyage échoué ou annulé. Examiner les messages Flatpak.'
-            failed_count=$((failed_count + 1))
-        fi
-    else
-        status_line "$BLUE" 'Ignoré' 'Nettoyage des runtimes.'
-    fi
-fi
-step 4 'Afficher le bilan'
-flatpak_user list --all --columns=ref,origin,active > "$SNAPSHOT/references-apres.txt"
-flatpak_user remotes --columns=name,url,options > "$SNAPSHOT/depots-apres.txt"
-printf -v totals '%s nouvelles, %s mises à jour, %s inchangées, %s erreurs.' \
+step 4 'Enregistrer les inventaires finaux'
+printf -v BILAN_TOTAUX 'Applications : %s nouvelles, %s mises à jour, %s inchangées, %s erreurs.' \
     "$installed_count" "$updated_count" "$unchanged_count" "$failed_count"
-if (( failed_count == 0 )); then
-    status_line "$GREEN" 'Bilan' "$totals"
-else
-    status_line "$SUMMARY_RED" 'Bilan en échec' "$totals"
-fi
-status_line "$VIOLET" 'Inventaires' "$SNAPSHOT"
+flatpak_user list --all --columns=ref,origin,active > "$SNAPSHOT/references-apres.txt" ||
+    fatal 'Lecture de l’inventaire final des références Flatpak impossible.' "$?"
+flatpak_user remotes --columns=name,url,options > "$SNAPSHOT/depots-apres.txt" ||
+    fatal 'Lecture de l’inventaire final des dépôts Flatpak impossible.' "$?"
 if (( installed_count > 0 )); then
     user_exports="${FLATPAK_USER_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/flatpak}/exports/share"
     if [[ ":${XDG_DATA_DIRS:-}:" != *":$user_exports:"* ]]; then
         bilan_note 'Fermer puis rouvrir la session graphique si les lanceurs Flatpak manquent dans le menu.'
-        warn 'Les lanceurs Flatpak peuvent manquer dans le menu. Fermez puis rouvrez la session graphique pour actualiser XDG_DATA_DIRS.'
         info 'Les applications installées se lancent aussi avec flatpak run IDENTIFIANT.'
     fi
 fi
-(( failed_count == 0 )) || fatal 'Exécution terminée avec des erreurs ; consulter les messages ci-dessus.'
-ok 'Installation et vérification terminées sans erreur.'
+(( failed_count == 0 ))

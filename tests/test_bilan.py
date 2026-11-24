@@ -34,6 +34,17 @@ class BilanTests(unittest.TestCase):
         self.assertEqual(result.stderr.count(HEADER), 1)
         self.assertEqual(result.stdout, '')
 
+    def test_conformity_is_distinct_from_simulation_and_applied_changes(self):
+        for body, args, expected in [
+            ('bilan_conforme', (), 'Déjà conforme'),
+            ('bilan_conforme', ('--dry-run',), 'Simulation terminée'),
+            ('bilan_conforme; bilan_debut', (), 'Réussi'),
+        ]:
+            with self.subTest(body=body, args=args):
+                result = self.run_bilan(body, args=args)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(f'Résultat     : {expected}', result.stderr)
+
     def test_early_failure_keeps_code_and_does_not_claim_changes(self):
         result = self.run_bilan('bilan_erreur "prérequis absent"; exit 7')
         self.assertEqual(result.returncode, 7)
@@ -96,11 +107,14 @@ class BilanTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr.count(HEADER), 1)
 
-    def test_silent_success_stays_silent_but_failure_is_visible(self):
-        result = self.run_bilan('SILENT_MODE=true')
-        self.assertEqual(result.stderr, '')
-        result = self.run_bilan('SILENT_MODE=true; exit 1')
-        self.assertIn(HEADER, result.stderr)
+    def test_totals_stay_in_the_single_footer_on_partial_failure(self):
+        result = self.run_bilan('bilan_debut; bilan_action "application A installée"; '
+                                'BILAN_TOTAUX="1 nouvelle, 1 erreur."; exit 1')
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, '')
+        self.assertEqual(result.stderr.count(HEADER), 1)
+        self.assertIn('Résultat     : Partiellement réussi', result.stderr)
+        self.assertIn('Totaux       : 1 nouvelle, 1 erreur.', result.stderr)
 
     def test_cleanup_result_is_reported_after_rollback(self):
         result = self.run_bilan('cleanup() { local rc=$?; trap - EXIT; '
@@ -127,7 +141,7 @@ class BilanTests(unittest.TestCase):
         self.assertNotIn('    - action 9', result.stderr)
 
     def test_help_and_lists_have_no_extra_summary(self):
-        for args in (('--help',), ('--list',), ('--list-groups',)):
+        for args in (('--help',), ('--list',)):
             with self.subTest(args=args):
                 result = self.run_bilan('printf catalogue', args=args)
                 self.assertEqual(result.returncode, 0)

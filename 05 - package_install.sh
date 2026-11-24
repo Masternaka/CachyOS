@@ -91,6 +91,7 @@ GROUP_MULTIMEDIA=(
 GROUP_COMMUNICATION=(
       #discord
       vesktop-bin
+      tailscale
 
 )
 
@@ -166,6 +167,7 @@ GROUP_KDE=(
 )
 
 PACKAGE_GROUPS=(utilitaires polices langues securite internet multimedia communication bureautique virtualisation terminaux terminal developpement ia kde)
+ESSENTIAL_GROUPS=(polices terminaux terminal)
 PACKAGES=()
 append_group() {
   case "$1" in
@@ -183,7 +185,7 @@ append_group() {
     developpement) PACKAGES+=(${GROUP_DEVELOPPEMENT[@]+"${GROUP_DEVELOPPEMENT[@]}"}) ;;
     ia) PACKAGES+=(${GROUP_IA[@]+"${GROUP_IA[@]}"}) ;;
     kde) PACKAGES+=(${GROUP_KDE[@]+"${GROUP_KDE[@]}"}) ;;
-    *) fatal "Groupe inconnu : $1. Utiliser --list-groups." 2 ;;
+    *) fatal "Groupe inconnu : $1. Voir les groupes dans --help." 2 ;;
   esac
 }
 
@@ -192,7 +194,6 @@ append_group() {
 bilan_couleurs 1
 info() { printf '  %s\n' "$*"; }
 status_line() { printf '  %b[%s]%b %s\n' "$1" "$2" "$RESET" "$3"; }
-ok() { status_line "$GREEN" 'OK' "$*"; }
 warn() { status_line "$YELLOW" 'Attention' "$*"; }
 error() { bilan_erreur "$*"; printf '  %b[Échec]%b %s\n' "$RED" "$ERROR_RESET" "$*" >&2; }
 fatal() { error "$1"; exit "${2:-1}"; }
@@ -203,14 +204,15 @@ show_help() {
 Usage : bash "05 - package_install.sh" [--list | --dry-run] [--groups LISTE]
 
   --help, -h   Afficher cette aide, sans privilèges ni contrôle système.
-  --list-groups Afficher les groupes disponibles, sans contrôle système.
-  --groups LISTE Sélectionner des groupes séparés par des virgules (défaut : tous).
-  --list       Afficher la liste exacte des paquets sélectionnés.
+  --groups LISTE Sélectionner des groupes séparés par des virgules.
+  --list       Afficher le catalogue complet ou les groupes demandés.
   --dry-run    Vérifier les dépôts et afficher les cibles, sans écriture,
                téléchargement, sudo, mise à jour ni nettoyage.
 
-Sans option : contrôle, aperçu, confirmation puis une transaction Pacman
-avec mise à jour complète du système. Lancer depuis un terminal interactif.
+Dans le terminal, choisir les essentiels, des groupes ou tout le catalogue.
+Sans terminal, la simulation sans sélection examine les essentiels.
+L'installation exige un terminal et une confirmation du plan qui inclut
+la mise à jour complète du système.
 Sudo est utilisé uniquement pour Pacman si nécessaire. Pacman conserve ses
 propres confirmations (conflits, remplacements et transaction finale).
 
@@ -227,6 +229,9 @@ L'inventaire avant/après est conservé dans un dossier privé sous /var/tmp.
 Ce n'est pas une sauvegarde système : pas de restauration automatique,
 pas de suppression de paquets ni de nettoyage du cache.
 EOF
+  printf '\nGroupes essentiels : %s\n' "${ESSENTIAL_GROUPS[*]}"
+  printf '\nGroupes disponibles :\n'
+  printf '  %s\n' "${PACKAGE_GROUPS[@]}"
 }
 
 SELECTED_PACKAGE_GROUPS=''
@@ -234,7 +239,6 @@ while (( $# > 0 )); do
   case "$1" in
     --help|-h) show_help; exit 0 ;;
     --list) LIST_ONLY=true; shift ;;
-    --list-groups) printf '%s\n' "${PACKAGE_GROUPS[@]}"; exit 0 ;;
     --dry-run) DRY_RUN=true; shift ;;
     --groups)
       [[ -z "$SELECTED_PACKAGE_GROUPS" && $# -ge 2 && -n "$2" && "$2" != -* ]] || fatal 'Valeur --groups manquante ou répétée.' 2
@@ -242,11 +246,37 @@ while (( $# > 0 )); do
     *) fatal "Option inconnue : $1. Utiliser --help." 2 ;;
   esac
 done
+cancel_selection() {
+  bilan_annule 'Sélection des paquets annulée.'
+  exit 0
+}
+
+# La liste sans sélection reste le catalogue complet pour le diagnostic.
+REQUESTED_PACKAGE_GROUPS=("${ESSENTIAL_GROUPS[@]}")
+if [[ -z "$SELECTED_PACKAGE_GROUPS" ]]; then
+  if $LIST_ONLY; then
+    REQUESTED_PACKAGE_GROUPS=("${PACKAGE_GROUPS[@]}")
+  elif [[ -t 0 && -t 1 ]]; then
+    printf '%s\n' '1  Mes paquets essentiels' '2  Choisir des groupes' '3  Tout le catalogue'
+    printf 'Sélection [Entrée = essentiels, q = quitter] : '
+    IFS= read -r answer || cancel_selection
+    case "$answer" in
+      ''|1) ;;
+      2)
+        printf 'Groupes disponibles : %s\n' "${PACKAGE_GROUPS[*]}"
+        printf 'Groupes séparés par des virgules [Entrée = annuler] : '
+        IFS= read -r SELECTED_PACKAGE_GROUPS || cancel_selection
+        case "$SELECTED_PACKAGE_GROUPS" in ''|q|Q) cancel_selection ;; esac
+        ;;
+      3) REQUESTED_PACKAGE_GROUPS=("${PACKAGE_GROUPS[@]}") ;;
+      q|Q) cancel_selection ;;
+      *) fatal 'Choisir 1, 2, 3 ou q.' 2 ;;
+    esac
+  fi
+fi
 if [[ -n "$SELECTED_PACKAGE_GROUPS" ]]; then
   [[ "$SELECTED_PACKAGE_GROUPS" != ,* && "$SELECTED_PACKAGE_GROUPS" != *, && "$SELECTED_PACKAGE_GROUPS" != *,,* ]] || fatal 'Liste de groupes mal formée.' 2
   IFS=, read -r -a REQUESTED_PACKAGE_GROUPS <<< "$SELECTED_PACKAGE_GROUPS"
-else
-  REQUESTED_PACKAGE_GROUPS=("${PACKAGE_GROUPS[@]}")
 fi
 SEEN_PACKAGE_GROUPS=' '
 for group in "${REQUESTED_PACKAGE_GROUPS[@]}"; do
@@ -255,23 +285,17 @@ for group in "${REQUESTED_PACKAGE_GROUPS[@]}"; do
   SEEN_PACKAGE_GROUPS+="$group "
 done
 if $LIST_ONLY; then
-  if (( ${#PACKAGES[@]} > 0 )); then printf '%s\n' "${PACKAGES[@]}"; fi
+  if [[ -n ${PACKAGES[0]:-} ]]; then printf '%s\n' "${PACKAGES[@]}"; fi
   exit 0
 fi
-(( ${#PACKAGES[@]} > 0 )) || fatal 'Aucun paquet actif dans les groupes sélectionnés.' 2
+[[ -n ${PACKAGES[0]:-} ]] || fatal 'Aucun paquet actif dans les groupes sélectionnés.' 2
 
 on_exit() {
   local status=$1
-  if (( status != 0 )); then
-    printf 'Opération interrompue ou en échec (code %s).\n' "$status" >&2
-    if [[ -n "$SNAPSHOT" ]]; then
-      printf 'Inventaire conservé : %s\n' "$SNAPSHOT" >&2
-    fi
-    if $TRANSACTION_STARTED; then
-      printf 'Pacman a pu effectuer des changements. Examiner son journal ; aucun retour arrière automatique.\n' >&2
-    fi
+  if (( status != 0 )) && $TRANSACTION_STARTED; then
+    bilan_note 'Pacman a pu effectuer des changements. Examiner son journal ; aucun retour arrière automatique.'
   fi
-    bilan_print "$status"
+  bilan_print "$status"
 }
 trap 'on_exit $?' EXIT
 trap 'exit 130' INT
@@ -327,7 +351,7 @@ resolve_packages() {
     # Respecter le premier dépôt trouvé dans l’ordre de priorité Pacman.
     target=$(awk -v pkg="$package" '$2 == pkg && !found {print $1 "/" $2; found=1}' <<< "$listing")
     if [[ -z "$target" ]]; then
-      error "Paquet introuvable : $package"
+      error "Paquet introuvable : $package. Vérifier son nom et les dépôts avec pacman -Si $package."
       missing=$((missing + 1))
       continue
     fi
@@ -339,6 +363,7 @@ resolve_packages() {
 }
 
 step 2 'Examiner les paquets et leurs dépôts'
+info "Groupes sélectionnés : ${REQUESTED_PACKAGE_GROUPS[*]}"
 resolve_packages
 info "${#PACKAGES[@]} paquets demandés. Les dépendances et mises à jour seront détaillées par Pacman."
 warn 'La transaction met à jour tout le système et installe les paquets manquants.'
@@ -349,8 +374,7 @@ printf 'Commande :'
 printf ' %q' pacman -Syu --needed "${TARGETS[@]}"
 printf '\n'
 if $DRY_RUN; then
-  step 3 'Bilan de la simulation'
-  status_line "$CYAN" 'Simulation' 'Simulation terminée : aucun fichier écrit et aucune installation effectuée.'
+  step 3 'Limites de l’aperçu'
   info 'Disponibilité constatée dans les bases locales ; versions finales vérifiées par la transaction réelle.'
   exit 0
 fi
@@ -419,7 +443,7 @@ TRANSACTION_STARTED=true
 # Aucune synchronisation -Sy séparée susceptible de laisser une mise à jour partielle.
 status=0
 ${SUDO[@]+"${SUDO[@]}"} pacman -Syu --needed "${TARGETS[@]}" || status=$?
-step 4 'Vérifier la transaction et afficher le bilan'
+step 4 'Vérifier la transaction'
 pacman -Q > "$SNAPSHOT/paquets-apres.txt" || fatal 'Lecture de l’état final impossible ; vérifier le journal Pacman.'
 (( status == 0 )) || fatal 'La transaction Pacman a échoué ou a été annulée. Aucun succès annoncé.' "$status"
 
@@ -448,6 +472,5 @@ for package in "${PACKAGES[@]}"; do
   fi
 done
 (( missing == 0 )) || fatal "$missing paquet(s) demandé(s) absent(s) après la transaction."
-ok "Transaction terminée : ${#PACKAGES[@]} paquets demandés présents, dont $new_count nouvellement installés."
-status_line "$VIOLET" 'Inventaires' "$SNAPSHOT"
-info 'Les autres changements du système sont consignés par Pacman. Cache conservé.'
+BILAN_TOTAUX="${#PACKAGES[@]} paquets demandés présents, dont $new_count nouvellement installés."
+bilan_note 'Les autres changements du système sont consignés par Pacman. Cache conservé.'
