@@ -90,7 +90,7 @@ if (( $+commands[resolvectl] )); then alias dns='resolvectl status'; fi
 # Choix effectué à l'installation ; surcharge possible dans l'environnement.
 # Sans option ni variable explicite, les commandes usuelles sont conservées.
 if [[ ${CACHYOS_ZSH_REPLACE_COMMANDS:-false} == true ]]; then
-    if (( $+commands[eza] )); then alias ls='eza --icons'; fi
+    if (( $+commands[eza] )); then alias ls='eza --group-directories-first --icons=auto'; fi
     if (( $+commands[bat] )); then
         alias cat='bat --paging=never'
         alias less='bat'

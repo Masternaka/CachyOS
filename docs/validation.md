@@ -41,16 +41,13 @@ Le mode complet utilise les outils déjà disponibles. Zsh, Stow et les parseurs
 facultatifs absents produisent des contrôles ignorés, sans installation automatique.
 Les tests système remplacent les commandes par des faux outils et redirigent les
 écritures dans leurs fixtures. Les configurations personnelles ne servent pas de
-fixtures. Les anciens modèles de `config/zsh/` restent des archives avec marqueurs,
-exclus de la validation des sources Zsh actives.
+fixtures.
 
 ## Vérification documentaire du 17 novembre 2026
 
 La documentation utilise désormais un seul `README.md` à la racine. Les guides
 Stow, Kitty, Fastfetch et les raccourcis sont regroupés dans `docs/`, avec un
-guide d'utilisation des onze scripts. Les anciens modèles Zsh restent conservés
-dans `config/zsh/` ; leur rôle est décrit dans le
-[catalogue des configurations](dotfiles.md#anciens-modèles-zsh).
+guide d'utilisation des onze scripts.
 
 `python3 -B scripts/verifier_depot.py --statique` réussit : syntaxes
 Bash/Python/Zsh et cinq tests de cohérence documentaire. Le catalogue documenté

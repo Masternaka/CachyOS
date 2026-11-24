@@ -176,8 +176,7 @@ explicites comme `STARSHIP_CONFIG`, `FZF_DEFAULT_OPTS` ou `EZA_COLORS` sont resp
 Le script écrit aussi `~/.config/cachyos-zsh/install-settings.zsh`, avec les valeurs
 par défaut de ses options et le chemin local retenu pour fzf-tab. Ce fichier est
 copié même en mode Stow, car il dépend de cette installation ; il est sauvegardé
-et restauré comme les autres. Les anciennes versions de `config/zsh/` sont
-conservées dans le dépôt, mais ne sont plus les sources de cet installateur.
+et restauré comme les autres.
 
 Pour fzf-tab, le script préfère un paquet installé parmi `fzf-tab`, `zsh-fzf-tab`
 et `fzf-tab-git`, puis les dépôts configurés. À défaut, il propose le dépôt

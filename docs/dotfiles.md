@@ -181,8 +181,7 @@ ne sont jamais écrasées. Un lien vers une autre origine reste refusé.
 Le script crée aussi `~/.config/cachyos-zsh/install-settings.zsh` pour ses options
 et le chemin fzf-tab de cette machine. Ce fichier est copié, sauvegardé et restauré
 même en mode Stow ; il n'appartient pas aux sources portables de ce dossier.
-Le `.zshrc` le charge avant `~/.zshrc.local.pre`, qui reste prioritaire. Les anciens
-modèles `config/zsh` sont conservés, mais ne sont plus utilisés par l'installateur.
+Le `.zshrc` le charge avant `~/.zshrc.local.pre`, qui reste prioritaire.
 
 Les commandes Stow manuelles de ce guide n'installent aucun logiciel et ne créent
 pas de journal de restauration. Pour une session automatisée avec sauvegardes et
@@ -229,16 +228,7 @@ Références : [GNU Stow](https://www.gnu.org/software/stow/manual/stow.html),
 [Lazygit](https://github.com/jesseduffield/lazygit/blob/master/docs/Config.md),
 [Delta](https://dandavison.github.io/delta/configuration.html).
 
-## Anciens modèles Zsh
-
-Les fichiers de `config/zsh/` sont conservés comme archives et ne sont plus utilisés par
-`04 - install_zsh.sh`. Les marqueurs comme `@USE_THEME@` appartiennent à l'ancien
-mécanisme de génération ; ne pas charger ces modèles directement dans le shell.
-
-Les sources actuelles à modifier sont :
+## Sources Zsh
 
 - [Dotfiles/zsh/.zshrc](../Dotfiles/zsh/.zshrc) pour l'initialisation ;
-- [les alias](../Dotfiles/zsh/.config/cachyos-zsh/aliases.zsh) ;
-- les autres paquets du [catalogue Dotfiles](dotfiles.md).
-
-Aucun ancien commentaire ou exemple n'a été supprimé.
+- [les alias](../Dotfiles/zsh/.config/cachyos-zsh/aliases.zsh).

@@ -74,8 +74,7 @@ système pour installer leurs prérequis manquants.
 ## Configurations et raccourcis
 
 La documentation détaillée est réunie dans `docs/`. Les sources de configuration
-restent dans `Dotfiles/` ; les anciens modèles de `config/zsh/` sont conservés
-comme archives et ne sont plus utilisés par l'installateur.
+se trouvent dans `Dotfiles/`.
 
 | Guide | Ce qu'il permet de retrouver |
 | --- | --- |

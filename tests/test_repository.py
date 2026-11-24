@@ -58,11 +58,5 @@ class RepositoryTests(unittest.TestCase):
                     continue
                 self.assertTrue((file.parent / unquote(target)).exists(), f'{file.relative_to(ROOT)} : {target}')
 
-    def test_archives_are_identified_and_preserved(self):
-        text = (ROOT / 'docs/dotfiles.md').read_text()
-        self.assertIn('archives', text)
-        self.assertTrue((ROOT / 'config/zsh/zshrc.zsh').is_file())
-        self.assertTrue((ROOT / 'config/zsh/aliases.zsh').is_file())
-
 
 if __name__ == '__main__': unittest.main()
